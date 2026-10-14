@@ -1,0 +1,65 @@
+# Copy to config.toml and edit.
+
+# "audiovisual" (A/V tech, integration, events, conferencing) or
+# "autonomous" (self-driving vehicles).
+profile = "audiovisual"
+
+# Postings scoring below this are hidden. ~6 = AV is a real part of the job,
+# ~15+ = AV is the job. Lower it to see more borderline roles.
+min_score = 6
+
+# Extra skills or gear you want counted (each adds 3 points when mentioned).
+extra_terms = []            # e.g. ["Barco", "Christie", "d&b audiotechnik", "Disguise"]
+
+# Keep only postings whose location contains one of these (case-insensitive).
+# Leave empty for everywhere.
+location_include = []       # e.g. ["Dallas", "TX", "Remote"]
+
+[sources]
+enabled = ["remotive", "adzuna", "usajobs", "greenhouse", "lever", "ashby", "company_sites"]
+
+# Broad keyword search across many employers (free key: https://developer.adzuna.com)
+[adzuna]
+app_id = ""
+app_key = ""
+country = "us"
+where = ""                  # e.g. "Chicago, IL"
+distance_km = 50
+max_days_old = 30
+pages = 2
+
+# US federal jobs (free key: https://developer.usajobs.gov/APIRequest/Index)
+[usajobs]
+api_key = ""
+email = ""
+where = ""
+max_days_old = 30
+
+# Company job boards, by the slug in their careers URL, e.g.
+#   boards.greenhouse.io/<slug>   jobs.lever.co/<slug>   jobs.ashbyhq.com/<slug>
+# Not sure of the slug? Put the company website under [company_sites] instead,
+# or run:  python -m avjobs --find-board example.com
+[greenhouse]
+companies = []
+
+[lever]
+companies = []
+
+[ashby]
+companies = []
+
+# Company websites. The tool finds each careers page, works out which job
+# board it uses (Greenhouse, Lever, Ashby, Workday, SmartRecruiters, or the
+# page's own structured job data) and pulls the openings from it.
+# These are example AV employers - edit to taste.
+[company_sites]
+sites = [
+  "https://www.avispl.com",
+  "https://www.onediversified.com",
+  "https://www.encoreglobal.com",
+  "https://www.crestron.com",
+  "https://www.extron.com",
+  "https://www.biamp.com",
+  "https://www.shure.com",
+  "https://www.freeman.com",
+]
