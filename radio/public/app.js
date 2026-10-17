@@ -2,6 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 5000;
+const STATION_NAME = document.querySelector('meta[property="og:site_name"]').content;
 const CHAT_POLL_MS = 2500;
 const DRIFT_TOLERANCE_SEC = 3;
 const MIN_ANSWER = 40;
@@ -333,9 +334,9 @@ function render() {
     $('np-heart').replaceChildren(...[heartControl(np), noteControl(np, lead(np)), youtubeLink(np)].filter(Boolean));
     renderAlso(np);
     $('np-total').textContent = fmt(np.duration);
-    document.title = `♪ ${np.title} · Open Air Radio`;
+    document.title = `♪ ${np.title} · ${STATION_NAME}`;
   } else {
-    document.title = 'Open Air Radio';
+    document.title = STATION_NAME;
   }
 
   $('up-next').replaceChildren(...state.upNext.map((t) => trackItem(t, 'next')));
@@ -613,12 +614,28 @@ function playNextNow() {
   fetchState();
 }
 
-function onPlayerError() {
+function onPlayerError(e) {
   const np = state && state.nowPlaying;
   if (!np) return;
   const msg = $('player-msg');
-  msg.textContent = `This one can't play here. Next song in ${fmt(np.duration - elapsedSec())}.`;
   msg.hidden = false;
+  // The video is gone, private, or not allowed on other sites: tell the station.
+  if ([100, 101, 150].includes(e.data)) {
+    msg.textContent = "This video isn't available. Skipping it…";
+    fetch(`/api/tracks/${np.id}/unavailable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: e.data }),
+    })
+      .then((res) => res.json())
+      .then((r) => {
+        if (r.skipped) fetchState();
+        else msg.textContent = `This video won't play for you. Next song in ${fmt(np.duration - elapsedSec())}.`;
+      })
+      .catch(() => {});
+    return;
+  }
+  msg.textContent = `This one can't play here. Next song in ${fmt(np.duration - elapsedSec())}.`;
 }
 
 function tuneIn() {

@@ -175,6 +175,7 @@ function renderQuestions() {
 
 function render() {
   renderQuestions();
+  if (!$('words-section').contains(document.activeElement)) $('words').value = data.blockedWords.join('\n');
   $('summary').textContent =
     `${data.tracks.length} songs · ${data.listeners} listening now · ${data.banned.length} banned`;
   $('round').textContent = data.tracks.length
@@ -202,8 +203,15 @@ function render() {
       title.append(link, el('span', 'status', t.status));
       if (t.language === 'instrumental') title.append(el('span', 'status', 'instrumental'));
       if (t.flag) title.append(el('span', 'status flag', `⚠ ${t.flag}`));
+      if (t.unavailable) title.append(el('span', 'status flag', '⚠ Video unavailable, skipped'));
       const picks = t.picks.length === 1 ? '1 pick' : `${t.picks.length} picks`;
       const songActions = el('div', 'actions');
+      if (t.unavailable) {
+        songActions.append(button('Try it again', async () => {
+          await api('POST', `/api/admin/tracks/${t.id}/available`);
+          load();
+        }));
+      }
       songActions.append(
         button('Remove song', async () => {
           if (!confirm(`Remove “${t.title}” and all ${picks}? This can't be undone.`)) return;
@@ -301,6 +309,19 @@ $('skip').addEventListener('click', async () => {
   load();
 });
 $('filter').addEventListener('input', () => data && render());
+$('words-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const { words } = await api('PUT', '/api/admin/blocked-words', { words: $('words').value });
+    $('words-msg').className = 'form-msg ok';
+    $('words-msg').textContent = `Saved. ${words.length} blocked words.`;
+    $('words').blur();
+    load();
+  } catch (err) {
+    $('words-msg').className = 'form-msg err';
+    $('words-msg').textContent = err.message;
+  }
+});
 $('q-add').addEventListener('submit', async (e) => {
   e.preventDefault();
   const questions = [1, 2, 3].map((i) => $(`qa${i}`).value);
@@ -317,6 +338,7 @@ setInterval(() => {
   const busy =
     document.activeElement === $('filter') ||
     editingSet != null ||
-    ($('q-section').contains(document.activeElement) && document.activeElement.tagName === 'INPUT');
+    ($('q-section').contains(document.activeElement) && document.activeElement.tagName === 'INPUT') ||
+    $('words-section').contains(document.activeElement);
   if (token() && !$('panel').hidden && !busy) load();
 }, 15000);

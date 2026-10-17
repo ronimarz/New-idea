@@ -322,7 +322,7 @@ class Station {
 
   validNextPick() {
     const t = this.nextPick != null && this.byId(this.nextPick);
-    return t && !(this.playing && this.playing.trackId === t.id) ? t.id : null;
+    return t && !t.unavailable && !(this.playing && this.playing.trackId === t.id) ? t.id : null;
   }
 
   // What plays after the current song: the oldest new submission, or else a past pick.
@@ -367,6 +367,32 @@ class Station {
     return count;
   }
 
+  // A listener's player couldn't play the song on air: the video was deleted, made
+  // private, or isn't allowed on other sites. Once at least half the people listening
+  // report it, skip it and stop replaying it. Some videos are blocked only in some
+  // countries, so one listener's report shouldn't take it away from everyone else.
+  reportUnavailable(trackId, viewer, listeners, now = Date.now()) {
+    const t = this.byId(trackId);
+    if (!t || !this.playing || this.playing.trackId !== trackId) return { skipped: false };
+    const airing = this.playing.startedAt;
+    const reports = t.reports && t.reports.airing === airing ? t.reports : { airing, keys: [] };
+    if (!reports.keys.includes(viewer)) reports.keys.push(viewer);
+    t.reports = reports;
+    if (reports.keys.length < Math.max(1, Math.ceil(listeners / 2))) return { skipped: false };
+    t.unavailable = { since: now };
+    delete t.reports;
+    this.skip(now);
+    return { skipped: true };
+  }
+
+  // Admin: give a song marked unavailable another chance.
+  markAvailable(trackId) {
+    const t = this.byId(trackId);
+    if (!t) return false;
+    delete t.unavailable;
+    return true;
+  }
+
   // Admin: end the current song early.
   skip(now = Date.now()) {
     if (!this.playing) return false;
@@ -391,7 +417,7 @@ class Station {
   // plays once, in random order, before any song plays again.
   pickRotation() {
     const queued = new Set(this.queue);
-    const candidates = this.tracks.filter((t) => !queued.has(t.id));
+    const candidates = this.tracks.filter((t) => !queued.has(t.id) && !t.unavailable);
     if (!candidates.length) return null;
     const played = new Set(this.round);
     let pool = candidates.filter((t) => !played.has(t.id));
@@ -430,7 +456,7 @@ class Station {
 
   // How long it takes to play every song once: the longest stretch before a repeat.
   roundLength() {
-    return this.tracks.reduce((sum, t) => sum + t.duration, 0);
+    return this.tracks.reduce((sum, t) => sum + (t.unavailable ? 0 : t.duration), 0);
   }
 
   state(now = Date.now(), viewer = null) {

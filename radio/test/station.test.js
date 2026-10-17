@@ -439,3 +439,41 @@ test('history search looks through titles, names, places and answers', () => {
   assert.deepEqual(s.archive({ q: 'norway snow' }).tracks.map((t) => t.title), ['Holocene']);
   assert.deepEqual(s.archive({ q: 'nothing like this' }).tracks, []);
 });
+
+test('a song whose video is unavailable is skipped once half the listeners report it', () => {
+  const s = new Station();
+  const a = s.add(song('aaaaaaaaaaa', 200), 'u1', 0).track;
+  const b = s.add(song('bbbbbbbbbbb', 200), 'u2', 0).track;
+  assert.deepEqual(s.reportUnavailable(a.id, 'l1', 4, 1000), { skipped: false }); // 1 of 4
+  assert.deepEqual(s.reportUnavailable(a.id, 'l1', 4, 1500), { skipped: false }); // same person again
+  assert.deepEqual(s.reportUnavailable(a.id, 'l2', 4, 2000), { skipped: true }); // 2 of 4
+  assert.equal(s.playing.trackId, b.id);
+  assert.equal(s.playing.startedAt, 2000);
+  assert.ok(s.byId(a.id).unavailable);
+});
+
+test('one listener alone can skip it; reports for a song no longer on air do nothing', () => {
+  const s = new Station();
+  const a = s.add(song('aaaaaaaaaaa', 200), 'u1', 0).track;
+  s.add(song('bbbbbbbbbbb', 200), 'u2', 0);
+  assert.equal(s.reportUnavailable(a.id, 'l1', 1, 1000).skipped, true);
+  assert.equal(s.reportUnavailable(a.id, 'l1', 1, 1100).skipped, false); // already moved on
+});
+
+test('an unavailable song stays out of rotation until the admin gives it another try', () => {
+  const s = new Station({}, { random: () => 0 });
+  const a = s.add(song('aaaaaaaaaaa', 10), 'u1', 0).track;
+  s.add(song('bbbbbbbbbbb', 10), 'u2', 0);
+  s.add(song('ccccccccccc', 10), 'u3', 0);
+  s.reportUnavailable(a.id, 'l1', 1, 1000);
+  const played = [];
+  for (let t = 1000; t < 200_000; t += 10_000) {
+    s.tick(t);
+    played.push(s.playing.trackId);
+  }
+  assert.ok(!played.includes(a.id));
+  assert.equal(s.roundLength(), 20);
+  s.markAvailable(a.id);
+  assert.equal(s.byId(a.id).unavailable, undefined);
+  assert.equal(s.roundLength(), 30);
+});

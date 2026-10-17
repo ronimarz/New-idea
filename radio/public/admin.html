@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>Station Admin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -52,6 +53,17 @@
           <input id="qa3" maxlength="140" placeholder="Third question" aria-label="Third question" required>
           <div class="actions"><button type="submit">Add to the end of the list</button></div>
           <p id="q-msg" class="form-msg err" role="status"></p>
+        </form>
+      </section>
+
+      <section id="words-section" class="card">
+        <h2 class="label">Blocked words</h2>
+        <p class="hint">Chat, answers, notes, names and places can't contain these words or any links.
+          One word per line. Whole words only, and common disguises like "@" for "a" are caught too.</p>
+        <form id="words-form" class="q-form">
+          <textarea id="words" rows="6" aria-label="Blocked words"></textarea>
+          <div class="actions"><button type="submit">Save list</button></div>
+          <p id="words-msg" class="form-msg" role="status"></p>
         </form>
       </section>
 

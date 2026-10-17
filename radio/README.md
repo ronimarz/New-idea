@@ -13,6 +13,9 @@ A single global radio station that works like a jukebox anyone can play: meant t
 - **Listening together.** A line under the station name shows how many people are listening and where from. A live chat sits beside the station, and it marks which song was playing when people were talking.
 - **Thank-you notes.** Under any pick, "Say thanks" sends the person who chose it a private note. They see it the next time they visit, and nobody else ever can. They can clear notes they don't want to keep.
 - **Everything that's played stays.** "Played so far" lists every song that has played, most recent first, with when it last played and everyone's answers. You can search it (song, name, place, or anything in the answers) and keep going back with "Show more". Every song has an "Open on YouTube" link, so you can take a discovery with you.
+- **Broken videos skip themselves.** If a song's video is deleted, made private, or no longer allowed on other sites, listeners' players report it. Once at least half the people listening have (one is enough if they're alone), the station skips it and stops replaying it. Some videos are blocked only in some countries, so one listener's report doesn't take a song away from everyone. The admin page flags it, with "Try it again" and "Remove song".
+- **Basic filtering.** Chat, answers, notes, names and places can't contain links or words on the blocked list. The list starts with a short set of severe slurs (everyday swearing is allowed) and you edit it on the admin page. It matches whole words, so "Scunthorpe" is fine, and sees through simple disguises like "@" for "a". It won't catch everything; the admin page is still your backstop.
+- **Looks good when shared.** The link shows the station's name, a short description and a preview image in messages and on social media. There's a tab icon too.
 - **Any genre, any YouTube video** that allows embedding, up to 15 minutes long.
 
 Playback uses YouTube's embedded player, so YouTube handles the music rights. The station never stores or streams audio itself.
@@ -32,6 +35,8 @@ Settings, all optional:
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `3000` | Port to listen on. |
+| `STATION_NAME` | `Open Air Radio` | The station's name, shown in the page title, the header and link previews. |
+| `PUBLIC_URL` | from each request | The station's web address, like `https://example.com`, used in link previews. Set it once the station has its own address. |
 | `DATA_FILE` | `radio/data/station.json` | Where the station's songs and schedule are saved. |
 | `ADMIN_TOKEN` | random | The admin password. If it isn't set, a new one is made at each start and printed in the terminal. |
 | `STATION_LANGUAGES` | `english,instrumental` | Which songs are accepted. Use `english` alone to turn instrumentals away. |
@@ -45,6 +50,8 @@ Go to `/admin` and sign in with the admin password. From there you can:
 - manage the question sets: add, edit, delete and reorder them, pick which set shows right now, and pause the rotation to keep a set for as long as you like. The page shows which set is on and when the next one starts. Reordering or deleting never makes the current questions jump; the rotation moves on to the next set in the list from wherever it is.
 - see every song with its answers, status (on air, queued, played), plays and hearts, and search them
 - remove one person's pick of a song, or the whole song with all its picks (if it's on air, the next one starts right away)
+- edit the blocked-words list
+- give a song flagged "Video unavailable" another try
 - skip the current song
 - delete chat messages
 - ban a person, which removes all their songs, chat messages and notes and stops them posting again. Bans can be undone, but the removed posts can't come back.
@@ -74,7 +81,8 @@ People are identified by their internet address, since there are no accounts yet
 
 - `station.js`: the station's rules (queue, rotation, timing, validation). It has no web or file code, so it's easy to test.
 - `questions.js`: the question sets (saved with the station's data), the starter sets, and the weekly or monthly rotation.
+- `moderation.js`: the link and blocked-word filter.
 - `community.js`: chat, thank-you notes and who's listening. Like `station.js`, it has no web or file code.
 - `server.js`: a small HTTP server (`GET /api/lookup?v=<video id>` tells the page whether a song is already on the station; `GET /api/history?q=&before=` pages through everything that has played). It serves the pages and the JSON API, checks the admin password and saves everything to `DATA_FILE`.
-- `public/`: the station page (`index.html`, `app.js`) and the admin page (`admin.html`, `admin.js`).
-- `test/`: tests for `station.js`, `questions.js` and `community.js`.
+- `public/`: the station page (`index.html`, `app.js`), the admin page (`admin.html`, `admin.js`), the link-preview image (`og.jpg`) and the tab icon (`favicon.svg`).
+- `test/`: tests for `station.js`, `questions.js`, `community.js` and `moderation.js`.

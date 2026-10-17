@@ -7,10 +7,17 @@ const crypto = require('node:crypto');
 const { Station, LANGUAGES, languageRule, picksOf, parseYouTubeId } = require('./station');
 const { Chat, Notes, Presence } = require('./community');
 const { Questions } = require('./questions');
+const { Moderation } = require('./moderation');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'station.json');
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+const STATION_NAME = process.env.STATION_NAME || 'Open Air Radio';
+const DESCRIPTION =
+  'A radio station anyone can play. Add a song, say why it matters to you, ' +
+  'and listen along with people around the world.';
+// The station's public web address, for link previews. Without it, it's taken from each request.
+const PUBLIC_URL = (process.env.PUBLIC_URL || '').replace(/\/+$/, '');
 const SUBMIT_COOLDOWN_MS = 30 * 1000;
 const QUESTION_ROTATION = process.env.QUESTION_ROTATION === 'month' ? 'month' : 'week';
 const STATION_LANGUAGES = (process.env.STATION_LANGUAGES || 'english,instrumental')
@@ -35,6 +42,7 @@ function load() {
     chat: new Chat(data.chat),
     notes: new Notes(data.notes),
     questions: new Questions(data.questions, { rotation: QUESTION_ROTATION }),
+    moderation: new Moderation(data.moderation),
     banned: new Set(data.banned || []),
   };
 }
@@ -42,23 +50,44 @@ function load() {
 function save() {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   const tmp = `${DATA_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ station, chat, notes, questions, banned: [...banned] }));
+  fs.writeFileSync(tmp, JSON.stringify({ station, chat, notes, questions, moderation, banned: [...banned] }));
   fs.renameSync(tmp, DATA_FILE);
 }
 
-const { station, chat, notes, questions, banned } = load();
+const { station, chat, notes, questions, moderation, banned } = load();
 const presence = new Presence();
 if (station.tick()) save();
 setInterval(() => {
   if (station.tick()) save();
 }, 1000);
 
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+function baseUrl(req) {
+  if (PUBLIC_URL) return PUBLIC_URL;
+  const proto = (TRUST_PROXY && String(req.headers['x-forwarded-proto'] || '').split(',')[0]) || 'http';
+  const host = String(req.headers.host || 'localhost').replace(/[^a-zA-Z0-9.:-]/g, '');
+  return `${proto === 'https' ? 'https' : 'http'}://${host}`;
+}
+
+// The station page, with its name and web address filled in.
+const INDEX = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+
+function indexPage(req) {
+  return INDEX.replaceAll('{{NAME}}', escapeHtml(STATION_NAME))
+    .replaceAll('{{DESCRIPTION}}', escapeHtml(DESCRIPTION))
+    .replaceAll('{{URL}}', escapeHtml(baseUrl(req)));
+}
+
 const STATIC = {
-  '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/style.css': ['style.css', 'text/css; charset=utf-8'],
   '/admin': ['admin.html', 'text/html; charset=utf-8'],
   '/admin.js': ['admin.js', 'text/javascript; charset=utf-8'],
+  '/og.jpg': ['og.jpg', 'image/jpeg'],
+  '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
 };
 
 const lastSubmit = new Map();
@@ -138,6 +167,7 @@ async function handleAdmin(req, res, pathname) {
           })),
           language: t.language || 'english',
           flag: t.flag || '',
+          unavailable: !!t.unavailable,
           addedAt: t.addedAt,
           plays: t.plays,
           hearts: (t.hearts || []).length,
@@ -149,6 +179,7 @@ async function handleAdmin(req, res, pathname) {
         .map(({ id, at, name, location, text, key }) => ({ id, at, name, location, text, author: key })),
       banned: [...banned],
       roundSeconds: station.roundLength(),
+      blockedWords: moderation.words,
       questions: { ...questions.current(now), list: questions.sets },
       listeners: presence.summary(now).count,
     });
@@ -171,6 +202,13 @@ async function handleAdmin(req, res, pathname) {
     save();
     return sendJson(res, 200, { ok: true });
   }
+  if (req.method === 'PUT' && pathname === '/api/admin/blocked-words') {
+    const body = await readJson(req);
+    const result = moderation.setWords(body && body.words);
+    if (result.error) return sendJson(res, 400, result);
+    save();
+    return sendJson(res, 200, result);
+  }
   if (req.method === 'POST' && pathname === '/api/admin/skip') {
     station.skip(now);
     save();
@@ -183,6 +221,11 @@ async function handleAdmin(req, res, pathname) {
   }
   if (req.method === 'DELETE' && (m = pathname.match(/^\/api\/admin\/tracks\/(\d+)\/picks\/(\d+)$/))) {
     station.removePick(Number(m[1]), Number(m[2]), now);
+    save();
+    return sendJson(res, 200, { ok: true });
+  }
+  if (req.method === 'POST' && (m = pathname.match(/^\/api\/admin\/tracks\/(\d+)\/available$/))) {
+    station.markAvailable(Number(m[1]));
     save();
     return sendJson(res, 200, { ok: true });
   }
@@ -251,6 +294,8 @@ async function handle(req, res) {
         questions: questions.current(now),
       });
     }
+    const problem = moderation.check(input.name, input.location, input.answers || []);
+    if (problem) return sendJson(res, 400, { error: problem });
     const { error, track, joined } = station.add(input, key, now, questions.current(now).questions);
     if (error) return sendJson(res, 400, { error });
     lastSubmit.set(key, now);
@@ -266,6 +311,18 @@ async function handle(req, res) {
     return sendJson(res, 200, result);
   }
 
+  // The player says the song on air can't be played (YouTube error codes for a video
+  // that's gone, private, or not allowed on other sites).
+  m = pathname.match(/^\/api\/tracks\/(\d+)\/unavailable$/);
+  if (m && req.method === 'POST') {
+    const input = await readJson(req);
+    if (!input || ![100, 101, 150].includes(input.code)) return sendJson(res, 400, { error: 'Bad request.' });
+    station.tick(now);
+    const result = station.reportUnavailable(Number(m[1]), key, presence.summary(now).count, now);
+    if (result.skipped) save();
+    return sendJson(res, 200, result);
+  }
+
   m = pathname.match(/^\/api\/tracks\/(\d+)\/notes$/);
   if (m && req.method === 'POST') {
     if (banned.has(key)) return sendJson(res, 403, BANNED);
@@ -273,6 +330,8 @@ async function handle(req, res) {
     if (!input) return sendJson(res, 400, { error: 'Bad request.' });
     const track = station.byId(Number(m[1]));
     const pick = track && track.picks.find((p) => p.id === Number(input.pick));
+    const problem = moderation.check(input.text, input.name, input.location);
+    if (problem) return sendJson(res, 400, { error: problem });
     const { error } = notes.send(track, pick, input, key, now);
     if (error) return sendJson(res, 400, { error });
     save();
@@ -315,10 +374,17 @@ async function handle(req, res) {
     if (!input) return sendJson(res, 400, { error: 'Bad request.' });
     station.tick(now);
     const onAir = station.playing && station.byId(station.playing.trackId);
+    const problem = moderation.check(input.text, input.name, input.location);
+    if (problem) return sendJson(res, 400, { error: problem });
     const { error } = chat.post(input, key, onAir, now);
     if (error) return sendJson(res, 400, { error });
     save();
     return sendJson(res, 201, { ok: true });
+  }
+
+  if (req.method === 'GET' && pathname === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(indexPage(req));
   }
 
   const file = req.method === 'GET' && STATIC[pathname];
