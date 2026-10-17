@@ -41,7 +41,7 @@ Settings, all optional:
 Go to `/admin` and sign in with the admin password. From there you can:
 
 - see the current questions and when the next set starts, write your own three (they stay until you change them), or go back to the rotation
-- see every song with its blurb, status (on air, queued, played), plays and hearts, and search them
+- see every song with its answers, status (on air, queued, played), plays and hearts, and search them
 - remove a song (if it's on air, the next one starts right away)
 - skip the current song
 - delete chat messages
@@ -62,7 +62,7 @@ These are basic, for a first version:
 
 - Each visitor (identified by a hash of their IP address) can submit once every 30 seconds and have at most 3 songs waiting.
 - The same video can't be in the queue twice at once.
-- Names, locations and blurbs are length-limited, and they're always shown as plain text, never as HTML.
+- Names, locations and answers are length-limited, and they're always shown as plain text, never as HTML.
 
 - Chat allows one message every 2 seconds, and notes one every 10 seconds, with one note per song per person.
 
