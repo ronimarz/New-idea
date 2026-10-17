@@ -4,7 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Chat, Notes, Presence } = require('../community');
 
-const track = { id: 7, title: 'Harvest Moon', submitter: 'picker' };
+const track = { id: 7, title: 'Harvest Moon' };
+const pick = { id: 70, submitter: 'picker' };
 
 test('chat: posts, pages, marks your own, and hides who posted', () => {
   const c = new Chat();
@@ -34,11 +35,13 @@ test('chat: admin removal', () => {
 
 test('notes: only the picker sees them, one per song per sender', () => {
   const n = new Notes();
-  assert.match(n.send(track, { text: 'thanks' }, 'picker', 0).error, /your own pick/);
-  assert.match(n.send(null, { text: 'thanks' }, 'fan', 0).error, /no longer/);
-  assert.match(n.send(track, { text: ' ' }, 'fan', 0).error, /few words/);
-  assert.ok(n.send(track, { text: 'This got me through my shift.', name: 'Kim', location: 'Seoul' }, 'fan', 0).note);
-  assert.match(n.send(track, { text: 'again' }, 'fan', 60_000).error, /already sent/);
+  assert.match(n.send(track, pick, { text: 'thanks' }, 'picker', 0).error, /your own pick/);
+  assert.match(n.send(track, null, { text: 'thanks' }, 'fan', 0).error, /no longer/);
+  assert.match(n.send(track, pick, { text: ' ' }, 'fan', 0).error, /few words/);
+  assert.ok(n.send(track, pick, { text: 'This got me through my shift.', name: 'Kim', location: 'Seoul' }, 'fan', 0).note);
+  assert.match(n.send(track, pick, { text: 'again' }, 'fan', 60_000).error, /already sent/);
+  // Someone else who picked the same song can be thanked separately.
+  assert.ok(n.send(track, { id: 71, submitter: 'picker2' }, { text: 'You too!' }, 'fan', 120_000).note);
 
   assert.deepEqual(n.inbox('fan'), { unread: 0, notes: [] });
   const box = n.inbox('picker');
@@ -46,7 +49,7 @@ test('notes: only the picker sees them, one per song per sender', () => {
   assert.equal(box.notes[0].text, 'This got me through my shift.');
   assert.equal(box.notes[0].trackTitle, 'Harvest Moon');
   assert.equal(JSON.stringify(box).includes('fan'), false);
-  assert.deepEqual(n.sentFor('fan'), [7]);
+  assert.deepEqual(n.sentFor('fan'), [70, 71]);
 
   n.markRead('picker');
   assert.equal(n.inbox('picker').unread, 0);
@@ -57,10 +60,11 @@ test('notes: only the picker sees them, one per song per sender', () => {
 
 test('notes: rate limited and removable for a banned sender', () => {
   const n = new Notes();
-  const other = { id: 8, title: 'Other', submitter: 'picker' };
-  n.send(track, { text: 'one' }, 'fan', 0);
-  assert.match(n.send(other, { text: 'two' }, 'fan', 1000).error, /just sent/);
-  assert.ok(n.send(other, { text: 'two' }, 'fan', 20_000).note);
+  const other = { id: 8, title: 'Other' };
+  const otherPick = { id: 80, submitter: 'picker' };
+  n.send(track, pick, { text: 'one' }, 'fan', 0);
+  assert.match(n.send(other, otherPick, { text: 'two' }, 'fan', 1000).error, /just sent/);
+  assert.ok(n.send(other, otherPick, { text: 'two' }, 'fan', 20_000).note);
   assert.equal(n.removeByKey('fan'), 2);
 });
 

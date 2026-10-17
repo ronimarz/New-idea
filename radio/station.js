@@ -85,37 +85,107 @@ function answersOf(t) {
   return t.blurb ? [{ question: 'Why should people hear this?', answer: t.blurb }] : [];
 }
 
+// A song holds every pick of it: who chose it, from where, and their answers.
+// Newest first, since the newest pick is usually why it's playing now.
+function picksOf(t) {
+  return [...t.picks].sort((a, b) => b.addedAt - a.addedAt || b.id - a.id);
+}
+
+function pickedByViewer(t, viewer) {
+  return viewer != null && t.picks.some((p) => p.submitter === viewer);
+}
+
 // What listeners may see. `viewer` is the hashed visitor key, used only to say whether
-// this is their own pick and whether they've hearted it. It is never sent out itself.
+// a pick is their own and whether they've hearted the song. It is never sent out itself.
 function publicTrack(t, viewer) {
   if (!t) return null;
-  const { id, videoId, title, duration, name, location, addedAt, language } = t;
+  const { id, videoId, title, duration, addedAt, language } = t;
   const hearts = t.hearts || [];
   return {
     id,
     videoId,
     title,
     duration,
-    name,
-    location: location || '',
-    answers: answersOf(t),
     addedAt,
     language: language || 'english',
+    picks: picksOf(t).map((p) => ({
+      id: p.id,
+      name: p.name,
+      location: p.location || '',
+      answers: p.answers,
+      addedAt: p.addedAt,
+      mine: viewer != null && p.submitter === viewer,
+    })),
     hearts: hearts.length,
     hearted: viewer != null && hearts.includes(viewer),
-    mine: viewer != null && t.submitter === viewer,
+    mine: pickedByViewer(t, viewer),
+  };
+}
+
+// Songs used to hold a single person's pick, and the same song could be on the station
+// more than once. Turn those into one song per video, holding all its picks.
+function migrate(data) {
+  let nextPickId =
+    data.nextPickId ||
+    (data.tracks || []).reduce((m, t) => Math.max(m, ...(t.picks || []).map((p) => p.id)), 0) + 1;
+  const tracks = [];
+  const remap = new Map();
+  for (const t of data.tracks || []) {
+    const song = t.picks
+      ? t
+      : {
+          id: t.id,
+          videoId: t.videoId,
+          title: t.title,
+          duration: t.duration,
+          language: t.language || 'english',
+          ...(t.flag ? { flag: t.flag } : {}),
+          addedAt: t.addedAt,
+          plays: t.plays || 0,
+          hearts: t.hearts || [],
+          picks: [
+            {
+              id: nextPickId++,
+              submitter: t.submitter,
+              name: t.name || 'Anonymous',
+              location: t.location || '',
+              answers: answersOf(t),
+              addedAt: t.addedAt,
+            },
+          ],
+        };
+    const same = tracks.find((x) => x.videoId === song.videoId);
+    if (!same) {
+      tracks.push(song);
+      continue;
+    }
+    same.picks.push(...song.picks);
+    same.hearts = [...new Set([...same.hearts, ...song.hearts])];
+    same.plays += song.plays;
+    remap.set(song.id, same.id);
+  }
+  const to = (id) => (remap.has(id) ? remap.get(id) : id);
+  return {
+    tracks,
+    nextPickId,
+    queue: [...new Set((data.queue || []).map(to))],
+    history: (data.history || []).map(to),
+    playing: data.playing ? { ...data.playing, trackId: to(data.playing.trackId) } : null,
+    nextPick: data.nextPick != null ? to(data.nextPick) : null,
   };
 }
 
 class Station {
   constructor(data = {}, { random = Math.random, languages = DEFAULT_LANGUAGES } = {}) {
-    this.tracks = data.tracks || [];
-    this.queue = data.queue || [];
-    this.history = data.history || [];
-    this.playing = data.playing || null;
-    this.nextId = data.nextId || this.tracks.reduce((m, t) => Math.max(m, t.id), 0) + 1;
+    const m = migrate(data);
+    this.tracks = m.tracks;
+    this.queue = m.queue;
+    this.history = m.history;
+    this.playing = m.playing;
+    this.nextId = data.nextId || this.tracks.reduce((max, t) => Math.max(max, t.id), 0) + 1;
+    this.nextPickId = m.nextPickId;
     // A past pick chosen ahead of time, so listeners know what follows the current song.
-    this.nextPick = data.nextPick || null;
+    this.nextPick = m.nextPick;
     this.random = random;
     this.languages = languages;
   }
@@ -127,12 +197,17 @@ class Station {
       history: this.history,
       playing: this.playing,
       nextId: this.nextId,
+      nextPickId: this.nextPickId,
       nextPick: this.nextPick,
     };
   }
 
   byId(id) {
     return this.tracks.find((t) => t.id === id) || null;
+  }
+
+  byVideo(videoId) {
+    return this.tracks.find((t) => t.videoId === videoId) || null;
   }
 
   validate(input, questions = DEFAULT_QUESTIONS) {
@@ -166,21 +241,37 @@ class Station {
     return { value };
   }
 
+  // Adds someone's pick. If the song is already on the station, their pick joins it
+  // rather than making a copy. Returns { track, pick, joined }.
   add(input, submitter, now = Date.now(), questions = DEFAULT_QUESTIONS) {
     const { error, value } = this.validate(input, questions);
     if (error) return { error };
-    if (this.queue.some((id) => this.byId(id).videoId === value.videoId)) {
-      return { error: "That song is already in the queue." };
+    const { videoId, duration, title, language, flag, ...rest } = value;
+    const pick = { id: this.nextPickId++, submitter, ...rest, addedAt: now };
+    let track = this.byVideo(videoId);
+    if (track && track.picks.some((p) => p.submitter === submitter)) {
+      return { error: "You've already picked this song." };
     }
-    const pending = this.queue.filter((id) => this.byId(id).submitter === submitter).length;
-    if (pending >= LIMITS.maxQueuedPerSubmitter) {
-      return { error: `You already have ${pending} songs waiting. Let those play first.` };
+    const onAir = track && this.playing && this.playing.trackId === track.id;
+    const queued = track && this.queue.includes(track.id);
+    if (!onAir && !queued) {
+      const pending = this.queue.filter((id) => pickedByViewer(this.byId(id), submitter)).length;
+      if (pending >= LIMITS.maxQueuedPerSubmitter) {
+        return { error: `You already have ${pending} songs waiting. Let those play first.` };
+      }
     }
-    const track = { id: this.nextId++, ...value, submitter, addedAt: now, plays: 0, hearts: [] };
-    this.tracks.push(track);
-    this.queue.push(track.id);
+    if (track) {
+      track.picks.push(pick);
+      // Someone new wants to hear it, so it comes round again (unless it's on now or waiting).
+      if (!onAir && !queued) this.queue.push(track.id);
+    } else {
+      track = { id: this.nextId++, videoId, duration, title, language, ...(flag ? { flag } : {}),
+        addedAt: now, plays: 0, hearts: [], picks: [pick] };
+      this.tracks.push(track);
+      this.queue.push(track.id);
+    }
     this.tick(now);
-    return { track };
+    return { track, pick, joined: track.picks.length > 1 };
   }
 
   // Advances the schedule to `now`. Returns true if anything changed.
@@ -235,10 +326,25 @@ class Station {
     return true;
   }
 
+  // Admin: remove one person's pick. A song with no picks left is removed too.
+  removePick(trackId, pickId, now = Date.now()) {
+    const t = this.byId(trackId);
+    if (!t || !t.picks.some((p) => p.id === pickId)) return false;
+    t.picks = t.picks.filter((p) => p.id !== pickId);
+    if (!t.picks.length) this.remove(trackId, now);
+    return true;
+  }
+
+  // Admin (ban): remove every pick by one person. Returns how many picks went.
   removeBySubmitter(submitter, now = Date.now()) {
-    const ids = this.tracks.filter((t) => t.submitter === submitter).map((t) => t.id);
-    for (const id of ids) this.remove(id, now);
-    return ids.length;
+    let count = 0;
+    for (const t of [...this.tracks]) {
+      for (const p of t.picks.filter((x) => x.submitter === submitter)) {
+        this.removePick(t.id, p.id, now);
+        count++;
+      }
+    }
+    return count;
   }
 
   // Admin: end the current song early.
@@ -253,7 +359,7 @@ class Station {
   heart(trackId, viewer, on = true) {
     const t = this.byId(trackId);
     if (!t) return { error: 'That song is no longer on the station.' };
-    if (t.submitter === viewer) return { error: "That's your pick." };
+    if (pickedByViewer(t, viewer)) return { error: "That's your pick." };
     t.hearts = t.hearts || [];
     const has = t.hearts.includes(viewer);
     if (on && !has) t.hearts.push(viewer);
@@ -309,6 +415,7 @@ module.exports = {
   Station,
   DEFAULT_QUESTIONS,
   answersOf,
+  picksOf,
   parseYouTubeId,
   cleanText,
   looksNonEnglish,

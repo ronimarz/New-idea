@@ -117,8 +117,19 @@ function langTag(t) {
   return t.language === 'instrumental' ? ' · instrumental' : '';
 }
 
-function pickedBy(t) {
-  return t.location ? `${t.name} in ${t.location}` : t.name;
+// `p` is one person's pick of a song: their name, where they are, and their answers.
+function pickedBy(p) {
+  return p.location ? `${p.name} in ${p.location}` : p.name;
+}
+
+// The newest pick leads; it's usually why the song is playing now.
+function lead(t) {
+  return t.picks[0];
+}
+
+function pickedBySummary(t) {
+  const others = t.picks.length - 1;
+  return pickedBy(lead(t)) + (others ? ` + ${others} ${others === 1 ? 'other' : 'others'}` : '');
 }
 
 // Hearts are the only reaction. There is deliberately no way to count against a song.
@@ -162,10 +173,10 @@ async function toggleHeart(t) {
   }
 }
 
-// A private thank-you to the person who picked the song.
-function noteControl(t) {
-  if (t.mine) return null;
-  if (state.thanked.includes(t.id)) {
+// A private thank-you to one person who picked the song.
+function noteControl(t, p) {
+  if (p.mine) return null;
+  if (state.thanked.includes(p.id)) {
     const span = document.createElement('span');
     span.className = 'sent';
     span.textContent = '✉ Sent';
@@ -175,15 +186,15 @@ function noteControl(t) {
   btn.type = 'button';
   btn.className = 'heart';
   btn.textContent = '✉ Thank';
-  btn.title = `Send ${t.name} a private note`;
-  btn.addEventListener('click', () => openNote(t));
+  btn.title = `Send ${p.name} a private note`;
+  btn.addEventListener('click', () => openNote(t, p));
   return btn;
 }
 
-function actions(t) {
+function actions(...controls) {
   const div = document.createElement('div');
   div.className = 'actions';
-  div.append(...[heartControl(t), noteControl(t)].filter(Boolean));
+  div.append(...controls.filter(Boolean));
   return div;
 }
 
@@ -198,29 +209,52 @@ function answerList(answers) {
   });
 }
 
-// In the lists: the song and who picked it; their answers open on a click.
-// The lists are redrawn on every update, so remember which ones are open.
+// The page is redrawn on every update, so remember which parts someone has opened.
 const openItems = new Set();
 
-function trackItem(t, list) {
-  const li = document.createElement('li');
+function openable(key, summaryContent, body) {
   const details = document.createElement('details');
-  const key = `${list}:${t.id}`;
   details.open = openItems.has(key);
   details.addEventListener('toggle', () => {
     if (details.open) openItems.add(key);
     else openItems.delete(key);
   });
   const summary = document.createElement('summary');
-  const title = document.createElement('strong');
-  title.textContent = t.title;
-  summary.append(title, ` · ${pickedBy(t)}`);
+  summary.append(...summaryContent);
+  details.append(summary, ...body);
+  return details;
+}
+
+// One person's pick: who, their answers, and a way to thank them.
+function pickBody(t, p) {
   const dl = document.createElement('dl');
   dl.className = 'answers';
-  dl.append(...answerList(t.answers));
-  details.append(summary, dl, actions(t));
-  li.append(details);
+  dl.append(...answerList(p.answers));
+  return [dl, actions(noteControl(t, p))];
+}
+
+// In the lists: the song and who picked it; everyone's answers open on a click.
+function trackItem(t, list) {
+  const li = document.createElement('li');
+  const title = document.createElement('strong');
+  title.textContent = t.title;
+  const body = t.picks.flatMap((p) => {
+    const who = document.createElement('div');
+    who.className = 'pick-who';
+    who.textContent = pickedBy(p);
+    return [who, ...pickBody(t, p)];
+  });
+  li.append(openable(`${list}:${t.id}`, [title, ` · ${pickedBySummary(t)}`], [...body, actions(heartControl(t))]));
   return li;
+}
+
+// Under the song on air: everyone else who picked it.
+function renderAlso(np) {
+  const others = np.picks.slice(1);
+  $('np-also').hidden = !others.length;
+  $('np-also-list').replaceChildren(
+    ...others.map((p) => openable(`np:${p.id}`, [pickedBy(p)], pickBody(np, p)))
+  );
 }
 
 function render() {
@@ -230,15 +264,16 @@ function render() {
   $('tune-in').hidden = !np || audible || (tunedIn && !needsClick);
   if (np) {
     $('np-title').textContent = np.title;
-    $('np-name').textContent = np.name;
-    $('np-from').textContent = np.location ? ` in ${np.location}` : '';
+    $('np-name').textContent = lead(np).name;
+    $('np-from').textContent = lead(np).location ? ` in ${lead(np).location}` : '';
     $('np-lang').textContent = langTag(np);
     const nx = state.next;
     $('np-next').textContent = nx
       ? `Next: ${nx.title}`
       : '';
-    $('np-answers').replaceChildren(...answerList(np.answers));
-    $('np-heart').replaceChildren(...actions(np).childNodes);
+    $('np-answers').replaceChildren(...answerList(lead(np).answers));
+    $('np-heart').replaceChildren(...[heartControl(np), noteControl(np, lead(np))].filter(Boolean));
+    renderAlso(np);
     $('np-total').textContent = fmt(np.duration);
     document.title = `♪ ${np.title} · Open Air Radio`;
   } else {
@@ -307,12 +342,14 @@ function renderInbox() {
 }
 
 let noteTrack = null;
+let notePick = null;
 
-function openNote(t) {
+function openNote(t, p) {
   noteTrack = t;
+  notePick = p;
   const who = me();
-  $('note-heading').textContent = `Thank ${t.name} for “${t.title}”`;
-  $('note-private').textContent = `Only ${t.name} will see this.`;
+  $('note-heading').textContent = `Thank ${p.name} for “${t.title}”`;
+  $('note-private').textContent = `Only ${p.name} will see this.`;
   $('n-text').value = '';
   $('n-name').value = who.name;
   $('n-location').value = who.location;
@@ -331,11 +368,11 @@ async function onNoteSubmit(e) {
     const res = await fetch(`/api/tracks/${noteTrack.id}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: $('n-text').value, name, location }),
+      body: JSON.stringify({ text: $('n-text').value, name, location, pick: notePick.id }),
     });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Something went wrong.');
-    state.thanked.push(noteTrack.id);
+    state.thanked.push(notePick.id);
     render();
     $('note-dialog').close();
   } catch (err) {
@@ -716,9 +753,10 @@ async function onSubmit(e) {
     if (res.status === 409 && body.questions) renderQuestions(body.questions);
     if (!res.ok) throw new Error(body.error || 'Something went wrong.');
     msg.className = 'form-msg ok';
-    msg.textContent = body.position
-      ? `Added! It's number ${body.position} in the queue.`
-      : "Added! It's on the air right now.";
+    const where = body.position ? `It's number ${body.position} in the queue.` : "It's on the air right now.";
+    msg.textContent = body.joined
+      ? `That song was already on the station, so your answers were added to it. ${where}`
+      : `Added! ${where}`;
     $('f-url').value = '';
     for (const f of answerFields()) {
       f.value = '';

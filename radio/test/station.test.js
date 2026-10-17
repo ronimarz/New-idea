@@ -113,15 +113,100 @@ test('rejects bad submissions', () => {
   assert.match(s.add(song('aaaaaaaaaaa', 60, { location: '  ' }), 'u').error, /where you're listening/);
 });
 
-test('blocks duplicates in the queue and limits songs per person', () => {
+test('limits songs waiting per person', () => {
   const s = new Station();
   s.add(song('aaaaaaaaaaa'), 'u1', 0); // starts playing, not queued
   s.add(song('bbbbbbbbbbb'), 'u1', 0);
-  assert.match(s.add(song('bbbbbbbbbbb'), 'u2', 0).error, /already in the queue/);
   s.add(song('ccccccccccc'), 'u1', 0);
   s.add(song('ddddddddddd'), 'u1', 0);
   assert.match(s.add(song('eeeeeeeeeee'), 'u1', 0).error, /already have 3/);
   assert.ok(s.add(song('eeeeeeeeeee'), 'u2', 0).track);
+});
+
+test('a song already on the station gets the new pick instead of a copy', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa', 60), 'u1', 0); // on air
+  const b = s.add(song('bbbbbbbbbbb', 60, { name: 'Ada' }), 'u2', 0).track; // queued
+  const joined = s.add(song('bbbbbbbbbbb', 60, { name: 'Kim', location: 'Seoul' }), 'u3', 1000);
+  assert.equal(joined.joined, true);
+  assert.equal(joined.track.id, b.id);
+  assert.equal(s.tracks.length, 2);
+  assert.deepEqual(s.queue, [b.id]); // keeps its place, isn't queued twice
+  const next = s.state(1000).upNext[0];
+  assert.deepEqual(next.picks.map((p) => p.name), ['Kim', 'Ada']); // newest pick leads
+  assert.equal(next.picks[0].location, 'Seoul');
+});
+
+test('a pick of a song that already played queues it again', () => {
+  const s = new Station();
+  const a = s.add(song('aaaaaaaaaaa', 10), 'u1', 0).track;
+  s.add(song('bbbbbbbbbbb', 60), 'u2', 0);
+  s.tick(15_000); // a has played; b is on air
+  s.add(song('aaaaaaaaaaa', 10), 'u3', 15_000);
+  assert.deepEqual(s.queue, [a.id]);
+  assert.equal(s.byId(a.id).picks.length, 2);
+});
+
+test('a pick of the song on air joins it without queueing it again', () => {
+  const s = new Station();
+  const a = s.add(song('aaaaaaaaaaa', 60), 'u1', 0).track;
+  s.add(song('aaaaaaaaaaa', 60, { name: 'Kim' }), 'u2', 1000);
+  assert.deepEqual(s.queue, []);
+  assert.equal(s.state(1000).nowPlaying.picks[0].name, 'Kim');
+  assert.equal(s.playing.trackId, a.id);
+});
+
+test('one pick per person per song', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa'), 'u1', 0);
+  assert.match(s.add(song('aaaaaaaaaaa'), 'u1', 1000).error, /already picked this song/);
+});
+
+test('admin can remove one pick; the song goes when its last pick does', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa', 60), 'u0', 0);
+  const t = s.add(song('bbbbbbbbbbb', 60), 'u1', 0).track;
+  s.add(song('bbbbbbbbbbb', 60), 'u2', 0);
+  const [p1, p2] = t.picks;
+  assert.equal(s.removePick(t.id, p1.id), true);
+  assert.equal(s.byId(t.id).picks.length, 1);
+  s.removePick(t.id, p2.id);
+  assert.equal(s.byId(t.id), null);
+  assert.deepEqual(s.queue, []);
+});
+
+test("banning removes only that person's picks", () => {
+  const s = new Station();
+  const t = s.add(song('aaaaaaaaaaa', 60), 'troll', 0).track;
+  s.add(song('aaaaaaaaaaa', 60), 'nice', 0);
+  s.add(song('bbbbbbbbbbb', 60), 'troll', 0);
+  assert.equal(s.removeBySubmitter('troll', 0), 2);
+  assert.equal(s.tracks.length, 1);
+  assert.equal(s.byId(t.id).picks.length, 1);
+});
+
+test('duplicates saved by the earlier version are merged into one song', () => {
+  const old = (id, submitter, name) => ({
+    id, videoId: 'aaaaaaaaaaa', duration: 60, title: 'Same', name, submitter,
+    answers: [{ question: 'Why this song?', answer: `${name}'s reason` }], addedAt: id, plays: 1, hearts: [`h${id}`],
+  });
+  const s = new Station({
+    tracks: [old(1, 'u1', 'Ada'), old(2, 'u2', 'Kim'), { ...old(3, 'u3', 'Jin'), videoId: 'bbbbbbbbbbb' }],
+    queue: [2, 3, 1],
+    history: [1, 2],
+    playing: { trackId: 2, startedAt: 0 },
+    nextId: 4,
+  });
+  assert.equal(s.tracks.length, 2);
+  assert.deepEqual(s.byId(1).picks.map((p) => p.name), ['Ada', 'Kim']);
+  assert.deepEqual(s.byId(1).hearts, ['h1', 'h2']);
+  assert.equal(s.byId(1).plays, 2);
+  assert.deepEqual(s.queue, [1, 3]);
+  assert.deepEqual(s.history, [1, 1]);
+  assert.equal(s.playing.trackId, 1);
+  // New picks get fresh ids after the migrated ones.
+  const p = s.add(song('ccccccccccc'), 'u9', 0).pick;
+  assert.ok(p.id > Math.max(...s.tracks.flatMap((t) => t.picks.map((x) => x.id)).filter((id) => id !== p.id)));
 });
 
 test('cleans text and hides who submitted', () => {
@@ -129,11 +214,11 @@ test('cleans text and hides who submitted', () => {
   const messy = 'so\n\ngood '.repeat(10);
   s.add(song('aaaaaaaaaaa', 60, { name: '', answers: [messy, messy, messy], title: 'x'.repeat(500) }), 'secret', 0);
   const np = s.state(0).nowPlaying;
-  assert.equal(np.name, 'Anonymous');
-  assert.equal(np.location, 'Lagos, Nigeria');
-  assert.deepEqual(np.answers[0], { question: 'Why this song?', answer: 'so good '.repeat(10).trim() });
+  assert.equal(np.picks[0].name, 'Anonymous');
+  assert.equal(np.picks[0].location, 'Lagos, Nigeria');
+  assert.deepEqual(np.picks[0].answers[0], { question: 'Why this song?', answer: 'so good '.repeat(10).trim() });
   assert.equal(np.title.length, 200);
-  assert.equal('submitter' in np, false);
+  assert.equal(JSON.stringify(np).includes('secret'), false);
 });
 
 test('hearts: one per person, can be taken back, never on your own pick', () => {
@@ -231,14 +316,14 @@ test('a new submission still goes ahead of an already chosen past pick', () => {
 test('stores each answer with the question it was asked, so picks outlive the questions', () => {
   const s = new Station();
   const asked = ['Q one?', 'Q two?', 'Q three?'];
-  const t = s.add(song('aaaaaaaaaaa'), 'u', 0, asked).track;
-  assert.deepEqual(t.answers.map((a) => a.question), asked);
+  const { pick } = s.add(song('aaaaaaaaaaa'), 'u', 0, asked);
+  assert.deepEqual(pick.answers.map((a) => a.question), asked);
 });
 
 test('picks from before the questions still show their blurb', () => {
   const s = new Station({ tracks: [{ id: 1, videoId: 'aaaaaaaaaaa', duration: 60, title: 'Old', blurb: 'An old blurb.', name: 'A' }] });
   s.tick(0);
-  assert.deepEqual(s.state(0).nowPlaying.answers, [{ question: 'Why should people hear this?', answer: 'An old blurb.' }]);
+  assert.deepEqual(s.state(0).nowPlaying.picks[0].answers, [{ question: 'Why should people hear this?', answer: 'An old blurb.' }]);
 });
 
 test('state survives a save and reload', () => {

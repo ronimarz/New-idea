@@ -318,3 +318,12 @@ form label .hint { display: inline; font-weight: 400; }
 #panel { display: grid; gap: 16px; }
 .listening { margin: 4px 0 0; font-size: 0.85rem; color: var(--muted); }
 .listening:not(:empty)::before { content: "● "; color: #2e8b57; }
+.admin-picks { list-style: none; margin: 8px 0 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: grid; gap: 10px; }
+.also { margin: 0 0 12px; display: grid; gap: 4px; }
+.also summary, .tracks summary { cursor: pointer; }
+.also details[open] { margin-bottom: 8px; }
+.also details[open] > summary { margin-bottom: 6px; }
+.pick-who { font-weight: 600; font-size: 0.9rem; margin-top: 6px; }
+.tracks .answers { margin: 4px 0 6px; }
+.also { margin-top: 14px; }
+.also details[open] { padding-left: 12px; border-left: 2px solid var(--line); }

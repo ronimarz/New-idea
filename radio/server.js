@@ -4,7 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { Station, LANGUAGES, languageRule, answersOf } = require('./station');
+const { Station, LANGUAGES, languageRule, picksOf } = require('./station');
 const { Chat, Notes, Presence } = require('./community');
 const { Questions } = require('./questions');
 
@@ -128,16 +128,20 @@ async function handleAdmin(req, res, pathname) {
           id: t.id,
           videoId: t.videoId,
           title: t.title,
-          name: t.name,
-          location: t.location || '',
-          answers: answersOf(t),
+          picks: picksOf(t).map((p) => ({
+            id: p.id,
+            name: p.name,
+            location: p.location || '',
+            answers: p.answers,
+            addedAt: p.addedAt,
+            author: p.submitter,
+          })),
           language: t.language || 'english',
           flag: t.flag || '',
           addedAt: t.addedAt,
           plays: t.plays,
           hearts: (t.hearts || []).length,
           status: status(t),
-          author: t.submitter,
         })),
       chat: chat.messages
         .slice(-200)
@@ -173,6 +177,11 @@ async function handleAdmin(req, res, pathname) {
   }
   if (req.method === 'DELETE' && (m = pathname.match(/^\/api\/admin\/tracks\/(\d+)$/))) {
     station.remove(Number(m[1]), now);
+    save();
+    return sendJson(res, 200, { ok: true });
+  }
+  if (req.method === 'DELETE' && (m = pathname.match(/^\/api\/admin\/tracks\/(\d+)\/picks\/(\d+)$/))) {
+    station.removePick(Number(m[1]), Number(m[2]), now);
     save();
     return sendJson(res, 200, { ok: true });
   }
@@ -241,11 +250,11 @@ async function handle(req, res) {
         questions: questions.current(now),
       });
     }
-    const { error, track } = station.add(input, key, now, questions.current(now).questions);
+    const { error, track, joined } = station.add(input, key, now, questions.current(now).questions);
     if (error) return sendJson(res, 400, { error });
     lastSubmit.set(key, now);
     save();
-    return sendJson(res, 201, { id: track.id, position: station.queue.indexOf(track.id) + 1 });
+    return sendJson(res, 201, { id: track.id, joined, position: station.queue.indexOf(track.id) + 1 });
   }
 
   m = pathname.match(/^\/api\/tracks\/(\d+)\/heart$/);
@@ -261,7 +270,9 @@ async function handle(req, res) {
     if (banned.has(key)) return sendJson(res, 403, BANNED);
     const input = await readJson(req);
     if (!input) return sendJson(res, 400, { error: 'Bad request.' });
-    const { error } = notes.send(station.byId(Number(m[1])), input, key, now);
+    const track = station.byId(Number(m[1]));
+    const pick = track && track.picks.find((p) => p.id === Number(input.pick));
+    const { error } = notes.send(track, pick, input, key, now);
     if (error) return sendJson(res, 400, { error });
     save();
     return sendJson(res, 201, { ok: true });

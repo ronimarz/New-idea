@@ -5,6 +5,7 @@ A single global radio station that anyone can add to, meant to be left on in the
 - **Everyone hears the same thing.** The server keeps one schedule, and every listener's player jumps to the same spot in the current song.
 - **A simple page, made to leave on.** The player and the current pick sit up top with the chat beside them. "Add a song" opens only when you click it, and Up next and Recently played are short lists; click a song to read its answers. When a song ends, the next one starts right away, even in a background tab. Returning listeners start playing without clicking, if their browser allows it. The tab title shows what's playing.
 - **English songs and instrumentals, for now.** People say whether a song's lyrics are in English or it's instrumental; anything else is turned away. A title written mostly in another script (Korean, Cyrillic…) gets a warning badge on the admin page so you can check it.
+- **One song, many picks.** If someone adds a song that's already on the station, their answers join it instead of making a copy. If it's waiting in the queue it keeps its place; if it already played, it's queued again because someone new chose it. On air, the newest pick leads and everyone else is listed under "Also picked by". Hearts belong to the song; "Thank" goes to one person's pick. Each person can pick a song once.
 - **It never goes quiet.** New picks play in the order they were added. When the queue is empty, the station replays past picks at random, skipping anything that played recently.
 - **Three questions make people think.** Everyone who adds a song answers three questions, such as "Why this song?", "What does it mean to you?" and "When did you first hear it?" Each answer needs at least 40 characters. The questions change on their own every week (or month), moving through a list of question sets that you manage on the admin page. The station starts with 8 sets. Each pick keeps the questions it was answered with.
 - **The answers are the DJ.** They show under the player while the song plays.
@@ -42,7 +43,7 @@ Go to `/admin` and sign in with the admin password. From there you can:
 
 - manage the question sets: add, edit, delete and reorder them, pick which set shows right now, and pause the rotation to keep a set for as long as you like. The page shows which set is on and when the next one starts. Reordering or deleting never makes the current questions jump; the rotation moves on to the next set in the list from wherever it is.
 - see every song with its answers, status (on air, queued, played), plays and hearts, and search them
-- remove a song (if it's on air, the next one starts right away)
+- remove one person's pick of a song, or the whole song with all its picks (if it's on air, the next one starts right away)
 - skip the current song
 - delete chat messages
 - ban a person, which removes all their songs, chat messages and notes and stops them posting again. Bans can be undone, but the removed posts can't come back.
@@ -61,7 +62,7 @@ Private thank-you notes aren't shown on the admin page. Their recipient can clea
 These are basic, for a first version:
 
 - Each visitor (identified by a hash of their IP address) can submit once every 30 seconds and have at most 3 songs waiting.
-- The same video can't be in the queue twice at once.
+- A song is never in the queue twice; a new pick of it joins the song instead.
 - Names, locations and answers are length-limited, and they're always shown as plain text, never as HTML.
 
 - Chat allows one message every 2 seconds, and notes one every 10 seconds, with one note per song per person.

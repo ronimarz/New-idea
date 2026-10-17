@@ -63,7 +63,7 @@ function button(label, onClick, className = 'secondary') {
 async function ban(author, name) {
   if (!confirm(`Ban ${name} (${author.slice(0, 6)}) and remove everything they've posted?`)) return;
   const { removed } = await api('POST', '/api/admin/ban', { author });
-  alert(`Removed ${removed.songs} songs, ${removed.messages} chat messages and ${removed.notes} notes.`);
+  alert(`Removed ${removed.songs} picks, ${removed.messages} chat messages and ${removed.notes} notes.`);
   load();
 }
 
@@ -175,7 +175,10 @@ function render() {
   const tracks = data.tracks.filter(
     (t) =>
       !q ||
-      [t.title, t.name, t.location, ...t.answers.map((a) => a.answer)].join(' ').toLowerCase().includes(q)
+      [t.title, ...t.picks.flatMap((p) => [p.name, p.location, ...p.answers.map((a) => a.answer)])]
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
   );
   $('tracks').replaceChildren(
     ...tracks.map((t) => {
@@ -188,22 +191,39 @@ function render() {
       title.append(link, el('span', 'status', t.status));
       if (t.language === 'instrumental') title.append(el('span', 'status', 'instrumental'));
       if (t.flag) title.append(el('span', 'status flag', `⚠ ${t.flag}`));
-      li.append(
-        title,
-        el('div', 't-meta',
-          `${t.name}${t.location ? ` in ${t.location}` : ''} · ${when(t.addedAt)} · ` +
-          `played ${t.plays}× · ♥ ${t.hearts} · person ${t.author.slice(0, 6)}`),
-        answersEl(t.answers),
-        el('div', 'actions'),
-      );
-      li.lastChild.append(
+      const picks = t.picks.length === 1 ? '1 pick' : `${t.picks.length} picks`;
+      const songActions = el('div', 'actions');
+      songActions.append(
         button('Remove song', async () => {
-          if (!confirm(`Remove “${t.title}”? This can't be undone.`)) return;
+          if (!confirm(`Remove “${t.title}” and all ${picks}? This can't be undone.`)) return;
           await api('DELETE', `/api/admin/tracks/${t.id}`);
           load();
         }),
-        button('Ban person', () => ban(t.author, t.name), 'danger'),
       );
+      li.append(title, el('div', 't-meta', `${picks} · played ${t.plays}× · ♥ ${t.hearts}`), songActions);
+
+      // Each person's pick of this song, with their answers.
+      const list = el('ol', 'admin-picks');
+      for (const p of t.picks) {
+        const item = el('li');
+        const acts = el('div', 'actions');
+        if (t.picks.length > 1) {
+          acts.append(button('Remove this pick', async () => {
+            if (!confirm(`Remove ${p.name}'s pick of “${t.title}”?`)) return;
+            await api('DELETE', `/api/admin/tracks/${t.id}/picks/${p.id}`);
+            load();
+          }));
+        }
+        acts.append(button('Ban person', () => ban(p.author, p.name), 'danger'));
+        item.append(
+          el('div', 't-meta',
+            `${p.name}${p.location ? ` in ${p.location}` : ''} · ${when(p.addedAt)} · person ${p.author.slice(0, 6)}`),
+          answersEl(p.answers),
+          acts,
+        );
+        list.append(item);
+      }
+      li.append(list);
       return li;
     })
   );

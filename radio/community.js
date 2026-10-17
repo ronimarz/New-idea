@@ -101,12 +101,13 @@ class Notes {
     return { notes: this.notes, nextId: this.nextId };
   }
 
-  send(track, input, from, now = Date.now()) {
-    if (!track) return { error: 'That song is no longer on the station.' };
-    if (track.submitter === from) return { error: "That's your own pick." };
+  // `pick` is one person's pick of the song; the note goes to that person.
+  send(track, pick, input, from, now = Date.now()) {
+    if (!track || !pick) return { error: 'That pick is no longer on the station.' };
+    if (pick.submitter === from) return { error: "That's your own pick." };
     const text = cleanText(input && input.text, LIMITS.maxNote);
     if (!text) return { error: 'Write a few words first.' };
-    if (this.notes.some((n) => n.trackId === track.id && n.from === from)) {
+    if (this.notes.some((n) => n.pickId === pick.id && n.from === from)) {
       return { error: 'You already sent a note for this pick.' };
     }
     if (this.lastSent.has(from) && now - this.lastSent.get(from) < LIMITS.noteCooldownMs) {
@@ -116,11 +117,12 @@ class Notes {
     const note = {
       id: this.nextId++,
       at: now,
-      to: track.submitter,
+      to: pick.submitter,
       from,
       ...who(input),
       text,
       trackId: track.id,
+      pickId: pick.id,
       trackTitle: track.title,
       read: false,
     };
@@ -149,9 +151,9 @@ class Notes {
     };
   }
 
-  // Ids of the songs this viewer has already thanked, so the button can say "Sent".
+  // Ids of the picks this viewer has already thanked, so the button can say "Sent".
   sentFor(viewer) {
-    return this.notes.filter((n) => n.from === viewer).map((n) => n.trackId);
+    return this.notes.filter((n) => n.from === viewer && n.pickId != null).map((n) => n.pickId);
   }
 
   markRead(viewer) {
