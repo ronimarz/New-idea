@@ -4,13 +4,15 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { Station, LANGUAGES, languageRule } = require('./station');
+const { Station, LANGUAGES, languageRule, answersOf } = require('./station');
 const { Chat, Notes, Presence } = require('./community');
+const { Questions } = require('./questions');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'station.json');
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const SUBMIT_COOLDOWN_MS = 30 * 1000;
+const QUESTION_ROTATION = process.env.QUESTION_ROTATION === 'month' ? 'month' : 'week';
 const STATION_LANGUAGES = (process.env.STATION_LANGUAGES || 'english,instrumental')
   .split(',')
   .map((l) => l.trim())
@@ -32,6 +34,7 @@ function load() {
     station: new Station(data.station, { languages: STATION_LANGUAGES }),
     chat: new Chat(data.chat),
     notes: new Notes(data.notes),
+    questions: new Questions(data.questions, { rotation: QUESTION_ROTATION }),
     banned: new Set(data.banned || []),
   };
 }
@@ -39,11 +42,11 @@ function load() {
 function save() {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   const tmp = `${DATA_FILE}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ station, chat, notes, banned: [...banned] }));
+  fs.writeFileSync(tmp, JSON.stringify({ station, chat, notes, questions, banned: [...banned] }));
   fs.renameSync(tmp, DATA_FILE);
 }
 
-const { station, chat, notes, banned } = load();
+const { station, chat, notes, questions, banned } = load();
 const presence = new Presence();
 if (station.tick()) save();
 setInterval(() => {
@@ -127,7 +130,7 @@ async function handleAdmin(req, res, pathname) {
           title: t.title,
           name: t.name,
           location: t.location || '',
-          blurb: t.blurb,
+          answers: answersOf(t),
           language: t.language || 'english',
           flag: t.flag || '',
           addedAt: t.addedAt,
@@ -141,8 +144,21 @@ async function handleAdmin(req, res, pathname) {
         .reverse()
         .map(({ id, at, name, location, text, key }) => ({ id, at, name, location, text, author: key })),
       banned: [...banned],
+      questions: questions.current(now),
       listeners: presence.summary(now).count,
     });
+  }
+  if (req.method === 'PUT' && pathname === '/api/admin/questions') {
+    const body = await readJson(req);
+    const result = questions.setCustom(body && body.questions, now);
+    if (result.error) return sendJson(res, 400, result);
+    save();
+    return sendJson(res, 200, questions.current(now));
+  }
+  if (req.method === 'DELETE' && pathname === '/api/admin/questions') {
+    questions.clearCustom();
+    save();
+    return sendJson(res, 200, questions.current(now));
   }
   if (req.method === 'POST' && pathname === '/api/admin/skip') {
     station.skip(now);
@@ -197,6 +213,7 @@ async function handle(req, res) {
       ...station.state(now, key),
       languages: STATION_LANGUAGES.map((id) => ({ id, label: LANGUAGES[id] })),
       languageRule: languageRule(STATION_LANGUAGES),
+      questions: questions.current(now),
       listeners: presence.summary(now),
       inbox: notes.inbox(key),
       thanked: notes.sentFor(key),
@@ -211,7 +228,14 @@ async function handle(req, res) {
     }
     const input = await readJson(req);
     if (!input) return sendJson(res, 400, { error: 'Bad request.' });
-    const { error, track } = station.add(input, key, now);
+    // The questions can change while someone is filling in the form.
+    if (!questions.matches(input.questions, now)) {
+      return sendJson(res, 409, {
+        error: 'The questions just changed. Your answers are still there; check they fit the new questions.',
+        questions: questions.current(now),
+      });
+    }
+    const { error, track } = station.add(input, key, now, questions.current(now).questions);
     if (error) return sendJson(res, 400, { error });
     lastSubmit.set(key, now);
     save();

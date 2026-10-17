@@ -38,7 +38,7 @@
         <div id="np-info" hidden>
           <h3 id="np-title" class="np-title"></h3>
           <p class="np-by">picked by <strong id="np-name"></strong><span id="np-from"></span><span id="np-lang"></span></p>
-          <blockquote id="np-blurb" class="blurb"></blockquote>
+          <dl id="np-answers" class="answers"></dl>
           <div id="np-heart" class="actions np-heart"></div>
           <div class="progress" aria-hidden="true"><div id="np-bar"></div></div>
           <div class="times"><span id="np-elapsed">0:00</span><span id="np-total">0:00</span></div>
@@ -84,12 +84,11 @@
             <div id="f-langs" class="lang-options"></div>
             <span id="lang-note" class="hint"></span>
           </fieldset>
-          <label>Why should people hear this?
-            <span class="hint">What does it mean to you? Where were you when you first heard it? What should people listen for?</span>
-            <textarea id="f-blurb" minlength="100" maxlength="280" rows="4" required
-              placeholder="The first time I heard this I was…"></textarea>
-            <span id="blurb-count" class="hint"></span>
-          </label>
+          <fieldset class="qs">
+            <legend id="q-heading">This week's questions</legend>
+            <p id="q-when" class="hint"></p>
+            <div id="f-questions" class="q-list"></div>
+          </fieldset>
           <label>Where are you listening from?
             <input id="f-location" maxlength="60" required placeholder="City, country">
           </label>

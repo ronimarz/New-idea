@@ -67,13 +67,35 @@ async function ban(author, name) {
   load();
 }
 
+function answersEl(answers) {
+  const dl = el('dl', 'answers small');
+  for (const { question, answer } of answers) dl.append(el('dt', null, question), el('dd', null, answer));
+  return dl;
+}
+
+function renderQuestions() {
+  const q = data.questions;
+  $('q-current').replaceChildren(...q.questions.map((text) => el('li', null, text)));
+  const period = q.rotation === 'month' ? 'month' : 'week';
+  $('q-status').textContent = q.custom
+    ? `These are your custom questions. They stay until you change them or go back to the rotation.`
+    : `Set ${q.set} of ${q.sets} in the ${period}ly rotation. The next set starts ${when(q.changesAt)}.`;
+  $('q-reset').hidden = !q.custom;
+  if (document.activeElement.closest('#q-form') == null) {
+    q.questions.forEach((text, i) => ($(`q${i + 1}`).value = text));
+  }
+}
+
 function render() {
+  renderQuestions();
   $('summary').textContent =
     `${data.tracks.length} songs · ${data.listeners} listening now · ${data.banned.length} banned`;
 
   const q = $('filter').value.trim().toLowerCase();
   const tracks = data.tracks.filter(
-    (t) => !q || [t.title, t.name, t.location, t.blurb].join(' ').toLowerCase().includes(q)
+    (t) =>
+      !q ||
+      [t.title, t.name, t.location, ...t.answers.map((a) => a.answer)].join(' ').toLowerCase().includes(q)
   );
   $('tracks').replaceChildren(
     ...tracks.map((t) => {
@@ -91,7 +113,7 @@ function render() {
         el('div', 't-meta',
           `${t.name}${t.location ? ` in ${t.location}` : ''} · ${when(t.addedAt)} · ` +
           `played ${t.plays}× · ♥ ${t.hearts} · person ${t.author.slice(0, 6)}`),
-        el('div', 't-blurb', `“${t.blurb}”`),
+        answersEl(t.answers),
         el('div', 'actions'),
       );
       li.lastChild.append(
@@ -168,6 +190,21 @@ $('skip').addEventListener('click', async () => {
   load();
 });
 $('filter').addEventListener('input', () => data && render());
+$('q-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const questions = [1, 2, 3].map((i) => $(`q${i}`).value);
+  try {
+    await api('PUT', '/api/admin/questions', { questions });
+    $('q-msg').textContent = '';
+    load();
+  } catch (err) {
+    $('q-msg').textContent = err.message;
+  }
+});
+$('q-reset').addEventListener('click', async () => {
+  await api('DELETE', '/api/admin/questions');
+  load();
+});
 
 if (token()) load();
 else showLogin();

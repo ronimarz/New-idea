@@ -4,8 +4,8 @@ const $ = (id) => document.getElementById(id);
 const POLL_MS = 5000;
 const CHAT_POLL_MS = 2500;
 const DRIFT_TOLERANCE_SEC = 3;
-const MIN_BLURB = 100;
-const MAX_BLURB = 280;
+const MIN_ANSWER = 40;
+const MAX_ANSWER = 240;
 
 let state = null;
 let clockOffset = 0; // serverTime - local time
@@ -187,6 +187,35 @@ function actions(t) {
   return div;
 }
 
+// The full set of answers, as shown for the song on air.
+function answerList(answers) {
+  return answers.flatMap(({ question, answer }) => {
+    const dt = document.createElement('dt');
+    dt.textContent = question;
+    const dd = document.createElement('dd');
+    dd.textContent = answer;
+    return [dt, dd];
+  });
+}
+
+// In the lists: the first answer, with the rest a click away.
+function answersPreview(t) {
+  if (!t.answers.length) return [];
+  const first = document.createElement('div');
+  first.className = 't-blurb';
+  first.textContent = `“${t.answers[0].answer}”`;
+  if (t.answers.length === 1) return [first];
+  const more = document.createElement('details');
+  more.className = 'more-answers';
+  const summary = document.createElement('summary');
+  summary.textContent = `More from ${t.name}`;
+  const dl = document.createElement('dl');
+  dl.className = 'answers small';
+  dl.append(...answerList(t.answers));
+  more.append(summary, dl);
+  return [first, more];
+}
+
 function trackItem(t) {
   const li = document.createElement('li');
   const title = document.createElement('div');
@@ -195,10 +224,7 @@ function trackItem(t) {
   const meta = document.createElement('div');
   meta.className = 't-meta';
   meta.textContent = `${fmt(t.duration)} · picked by ${pickedBy(t)}${langTag(t)}`;
-  const blurb = document.createElement('div');
-  blurb.className = 't-blurb';
-  blurb.textContent = `“${t.blurb}”`;
-  li.append(title, meta, blurb, actions(t));
+  li.append(title, meta, ...answersPreview(t), actions(t));
   return li;
 }
 
@@ -216,7 +242,7 @@ function render() {
     $('np-next').textContent = nx
       ? `Next: ${nx.title}, picked by ${pickedBy(nx)}${nx.replay ? ' (from earlier)' : ''}`
       : '';
-    $('np-blurb').textContent = np.blurb;
+    $('np-answers').replaceChildren(...answerList(np.answers));
     $('np-heart').replaceChildren(...actions(np).childNodes);
     $('np-total').textContent = fmt(np.duration);
     document.title = `♪ ${np.title} · Open Air Radio`;
@@ -230,6 +256,7 @@ function render() {
   $('recent').replaceChildren(...state.recent.map(trackItem));
   $('recent-empty').hidden = state.recent.length > 0;
   renderLanguages();
+  renderQuestions(state.questions);
   renderListeners();
   renderInbox();
 }
@@ -532,7 +559,8 @@ function announce(track) {
   if (!$('dj-voice').checked || !('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(
-    `Now playing ${track.title}, picked by ${pickedBy(track)}. ${track.blurb}`
+    `Now playing ${track.title}, picked by ${pickedBy(track)}. ` +
+      track.answers.map((a) => `${a.question} ${a.answer}`).join(' ')
   );
   const restore = () => {
     if (playerReady) player.setVolume(100);
@@ -556,16 +584,60 @@ function setPreviewStatus(text) {
   $('preview-status').textContent = text;
 }
 
-// Count the way the server does: runs of spaces and line breaks count as one character.
-function blurbLength() {
-  return $('f-blurb').value.replace(/\s+/g, ' ').trim().length;
+// ---- The questions ---------------------------------------------------------------
+
+let shownQuestions = null;
+
+function answerFields() {
+  return [...document.querySelectorAll('#f-questions textarea')];
 }
 
-function updateBlurbCount() {
-  const n = blurbLength();
-  const need = MIN_BLURB - n;
-  $('blurb-count').textContent =
-    need > 0 ? `${need} more characters to go (at least ${MIN_BLURB})` : `${n}/${MAX_BLURB}`;
+// Count the way the server does: runs of spaces and line breaks count as one character.
+function answerLength(field) {
+  return field.value.replace(/\s+/g, ' ').trim().length;
+}
+
+function updateAnswerCount(field) {
+  const n = answerLength(field);
+  const need = MIN_ANSWER - n;
+  field.nextElementSibling.textContent =
+    need > 0 ? `${need} more characters to go` : `${n}/${MAX_ANSWER}`;
+}
+
+function renderQuestions(info) {
+  if (!info) return;
+  const same = shownQuestions && shownQuestions.join('\n') === info.questions.join('\n');
+  const period = info.rotation === 'month' ? 'month' : 'week';
+  $('q-heading').textContent = info.custom ? 'Answer these three questions' : `This ${period}'s questions`;
+  $('q-when').textContent = info.custom
+    ? ''
+    : `New questions ${period === 'month' ? 'on the 1st of every month' : 'every Monday'}.`;
+  if (same) return;
+  // Keep whatever someone already typed if the questions change under them.
+  const typed = answerFields().map((f) => f.value);
+  shownQuestions = info.questions;
+  $('f-questions').replaceChildren(
+    ...info.questions.map((q, i) => {
+      const label = document.createElement('label');
+      const text = document.createElement('span');
+      text.textContent = `${i + 1}. ${q}`;
+      const area = document.createElement('textarea');
+      area.rows = 2;
+      area.maxLength = MAX_ANSWER;
+      area.required = true;
+      area.value = typed[i] || '';
+      const count = document.createElement('span');
+      count.className = 'hint';
+      area.addEventListener('input', () => {
+        updateAnswerCount(area);
+        updateSubmit();
+      });
+      label.append(text, area, count);
+      updateAnswerCount(area);
+      return label;
+    })
+  );
+  updateSubmit();
 }
 
 // ---- Language ------------------------------------------------------------------
@@ -601,7 +673,8 @@ function updateSubmit() {
   $('f-submit').disabled = !(
     pending &&
     chosenLanguage() &&
-    blurbLength() >= MIN_BLURB &&
+    answerFields().length > 0 &&
+    answerFields().every((f) => answerLength(f) >= MIN_ANSWER) &&
     $('f-location').value.trim()
   );
 }
@@ -671,7 +744,8 @@ async function onSubmit(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...pending,
-        blurb: $('f-blurb').value,
+        questions: shownQuestions,
+        answers: answerFields().map((f) => f.value),
         name: $('f-name').value,
         location: $('f-location').value,
         language: chosenLanguage(),
@@ -679,15 +753,18 @@ async function onSubmit(e) {
     });
     rememberMe($('f-name').value, $('f-location').value);
     const body = await res.json();
+    if (res.status === 409 && body.questions) renderQuestions(body.questions);
     if (!res.ok) throw new Error(body.error || 'Something went wrong.');
     msg.className = 'form-msg ok';
     msg.textContent = body.position
       ? `Added! It's number ${body.position} in the queue.`
       : "Added! It's on the air right now.";
     $('f-url').value = '';
-    $('f-blurb').value = '';
+    for (const f of answerFields()) {
+      f.value = '';
+      updateAnswerCount(f);
+    }
     for (const r of document.querySelectorAll('input[name="language"]')) r.checked = false;
-    updateBlurbCount();
     $('preview-wrap').hidden = true;
     if (preview) preview.stopVideo();
     mutedForPreview = false;
@@ -735,12 +812,7 @@ $('f-url').addEventListener('input', () => {
   clearTimeout(urlTimer);
   urlTimer = setTimeout(onUrlInput, 400);
 });
-$('f-blurb').addEventListener('input', () => {
-  updateBlurbCount();
-  updateSubmit();
-});
 $('f-location').addEventListener('input', updateSubmit);
-updateBlurbCount();
 $('add-form').addEventListener('submit', onSubmit);
 $('tune-in').addEventListener('click', tuneIn);
 $('lean-toggle').addEventListener('click', () => setLean(!document.body.classList.contains('lean')));

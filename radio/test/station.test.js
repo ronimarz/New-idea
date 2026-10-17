@@ -8,7 +8,11 @@ const song = (videoId, duration = 60, extra = {}) => ({
   videoId,
   duration,
   title: `Song ${videoId}`,
-  blurb: 'The drums come in late and it feels like the whole song finally exhales. I play it on every long drive home.',
+  answers: [
+    'The drums come in late and the whole song finally exhales.',
+    'It means slowing down, even when everything else is loud.',
+    'On a long drive home from my first job, windows down.',
+  ],
   name: 'Sam',
   location: 'Lagos, Nigeria',
   language: 'english',
@@ -98,10 +102,14 @@ test('rejects bad submissions', () => {
   assert.match(s.add(song('nope'), 'u').error, /YouTube link/);
   assert.match(s.add(song('aaaaaaaaaaa', 0), 'u').error, /how long/);
   assert.match(s.add(song('aaaaaaaaaaa', 99999), 'u').error, /up to 15 minutes/);
-  assert.match(s.add(song('aaaaaaaaaaa', 60, { blurb: '   ' }), 'u').error, /why/);
-  assert.match(s.add(song('aaaaaaaaaaa', 60, { blurb: 'Great song!' }), 'u').error, /at least 100/);
+  const good = song('x').answers;
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { answers: undefined }), 'u').error, /Answer “Why this song\?”/);
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { answers: [good[0], 'Great song!', good[2]] }), 'u').error,
+    /Say a little more for “What does it mean to you\?” \(at least 40/);
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { answers: [good[0], good[1], '   '] }), 'u').error, /Answer “When did/);
   // Padding with spaces doesn't count toward the minimum.
-  assert.match(s.add(song('aaaaaaaaaaa', 60, { blurb: `Great${' '.repeat(120)}song` }), 'u').error, /at least 100/);
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { answers: [`Great${' '.repeat(60)}song`, good[1], good[2]] }), 'u').error,
+    /at least 40/);
   assert.match(s.add(song('aaaaaaaaaaa', 60, { location: '  ' }), 'u').error, /where you're listening/);
 });
 
@@ -118,12 +126,12 @@ test('blocks duplicates in the queue and limits songs per person', () => {
 
 test('cleans text and hides who submitted', () => {
   const s = new Station();
-  const blurb = 'so\n\ngood '.repeat(20);
-  s.add(song('aaaaaaaaaaa', 60, { name: '', blurb, title: 'x'.repeat(500) }), 'secret', 0);
+  const messy = 'so\n\ngood '.repeat(10);
+  s.add(song('aaaaaaaaaaa', 60, { name: '', answers: [messy, messy, messy], title: 'x'.repeat(500) }), 'secret', 0);
   const np = s.state(0).nowPlaying;
   assert.equal(np.name, 'Anonymous');
   assert.equal(np.location, 'Lagos, Nigeria');
-  assert.equal(np.blurb, 'so good '.repeat(20).trim());
+  assert.deepEqual(np.answers[0], { question: 'Why this song?', answer: 'so good '.repeat(10).trim() });
   assert.equal(np.title.length, 200);
   assert.equal('submitter' in np, false);
 });
@@ -218,6 +226,19 @@ test('a new submission still goes ahead of an already chosen past pick', () => {
   assert.equal(s.state(62_000).next.videoId, 'ccccccccccc');
   s.tick(91_000);
   assert.equal(s.playing.trackId, 3);
+});
+
+test('stores each answer with the question it was asked, so picks outlive the questions', () => {
+  const s = new Station();
+  const asked = ['Q one?', 'Q two?', 'Q three?'];
+  const t = s.add(song('aaaaaaaaaaa'), 'u', 0, asked).track;
+  assert.deepEqual(t.answers.map((a) => a.question), asked);
+});
+
+test('picks from before the questions still show their blurb', () => {
+  const s = new Station({ tracks: [{ id: 1, videoId: 'aaaaaaaaaaa', duration: 60, title: 'Old', blurb: 'An old blurb.', name: 'A' }] });
+  s.tick(0);
+  assert.deepEqual(s.state(0).nowPlaying.answers, [{ question: 'Why should people hear this?', answer: 'An old blurb.' }]);
 });
 
 test('state survives a save and reload', () => {

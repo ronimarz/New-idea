@@ -5,8 +5,8 @@
 
 const LIMITS = {
   maxDurationSec: 15 * 60,
-  minBlurb: 100,
-  maxBlurb: 280,
+  minAnswer: 40,
+  maxAnswer: 240,
   maxName: 40,
   maxLocation: 60,
   maxTitle: 200,
@@ -18,6 +18,14 @@ const LIMITS = {
 };
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+
+// The first set of questions people answer when adding a song. More sets rotate in
+// from questions.js.
+const DEFAULT_QUESTIONS = [
+  'Why this song?',
+  'What does it mean to you?',
+  'When did you first hear it?',
+];
 
 // What a song's lyrics can be. The station accepts only the ones it's configured for.
 const LANGUAGES = {
@@ -71,11 +79,17 @@ function cleanText(value, max) {
   return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
+// Picks from before the three questions had a single "why" blurb.
+function answersOf(t) {
+  if (t.answers) return t.answers;
+  return t.blurb ? [{ question: 'Why should people hear this?', answer: t.blurb }] : [];
+}
+
 // What listeners may see. `viewer` is the hashed visitor key, used only to say whether
 // this is their own pick and whether they've hearted it. It is never sent out itself.
 function publicTrack(t, viewer) {
   if (!t) return null;
-  const { id, videoId, title, duration, name, location, blurb, addedAt, language } = t;
+  const { id, videoId, title, duration, name, location, addedAt, language } = t;
   const hearts = t.hearts || [];
   return {
     id,
@@ -84,7 +98,7 @@ function publicTrack(t, viewer) {
     duration,
     name,
     location: location || '',
-    blurb,
+    answers: answersOf(t),
     addedAt,
     language: language || 'english',
     hearts: hearts.length,
@@ -121,7 +135,7 @@ class Station {
     return this.tracks.find((t) => t.id === id) || null;
   }
 
-  validate(input) {
+  validate(input, questions = DEFAULT_QUESTIONS) {
     const videoId = parseYouTubeId(input && (input.videoId || input.url));
     if (!videoId) return { error: "That doesn't look like a YouTube link." };
     const duration = Math.round(Number(input.duration));
@@ -131,12 +145,15 @@ class Station {
     if (duration > LIMITS.maxDurationSec) {
       return { error: `Songs can be up to ${LIMITS.maxDurationSec / 60} minutes long.` };
     }
-    const blurb = cleanText(input.blurb, LIMITS.maxBlurb);
-    if (!blurb) return { error: 'Tell people why they should hear it.' };
-    if (blurb.length < LIMITS.minBlurb) {
-      return {
-        error: `Tell us a bit more about why you picked it (at least ${LIMITS.minBlurb} characters).`,
-      };
+    const given = Array.isArray(input.answers) ? input.answers : [];
+    const answers = [];
+    for (const [i, question] of questions.entries()) {
+      const answer = cleanText(given[i], LIMITS.maxAnswer);
+      if (!answer) return { error: `Answer “${question}”` };
+      if (answer.length < LIMITS.minAnswer) {
+        return { error: `Say a little more for “${question}” (at least ${LIMITS.minAnswer} characters).` };
+      }
+      answers.push({ question, answer });
     }
     const location = cleanText(input.location, LIMITS.maxLocation);
     if (!location) return { error: "Tell people where you're listening from." };
@@ -144,13 +161,13 @@ class Station {
     if (!this.languages.includes(language)) return { error: languageRule(this.languages) };
     const name = cleanText(input.name, LIMITS.maxName) || 'Anonymous';
     const title = cleanText(input.title, LIMITS.maxTitle) || 'Untitled';
-    const value = { videoId, duration, blurb, name, location, title, language };
+    const value = { videoId, duration, answers, name, location, title, language };
     if (language === 'english' && looksNonEnglish(title)) value.flag = 'Title may not be in English';
     return { value };
   }
 
-  add(input, submitter, now = Date.now()) {
-    const { error, value } = this.validate(input);
+  add(input, submitter, now = Date.now(), questions = DEFAULT_QUESTIONS) {
+    const { error, value } = this.validate(input, questions);
     if (error) return { error };
     if (this.queue.some((id) => this.byId(id).videoId === value.videoId)) {
       return { error: "That song is already in the queue." };
@@ -290,6 +307,8 @@ class Station {
 
 module.exports = {
   Station,
+  DEFAULT_QUESTIONS,
+  answersOf,
   parseYouTubeId,
   cleanText,
   looksNonEnglish,

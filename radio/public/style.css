@@ -371,3 +371,26 @@ form .lang-option {
 .status.flag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .chat-log { align-content: start; }
 input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }
+
+/* ---- The three questions ---------------------------------------------------------- */
+
+fieldset.qs { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
+fieldset.qs legend { font-weight: 700; padding: 0; margin-bottom: 2px; }
+.q-list { display: grid; gap: 12px; }
+
+.answers {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--quote);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+}
+.answers dt { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.answers dd { margin: 2px 0 10px; font-style: italic; white-space: pre-wrap; }
+.answers dd:last-child { margin-bottom: 0; }
+.answers.small { margin: 8px 0 0; font-size: 0.92rem; }
+
+.more-answers summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+.q-current { margin: 0 0 6px; padding-left: 20px; font-weight: 600; }
+.q-form { margin-top: 12px; gap: 8px; }
