@@ -251,8 +251,19 @@ function render() {
   $('recent').replaceChildren(...state.recent.map((t) => trackItem(t, 'recent')));
   $('recent-empty').hidden = state.recent.length > 0;
   renderLanguages();
+  renderListeners();
   renderQuestions(state.questions);
   renderInbox();
+}
+
+function renderListeners() {
+  const { count, places, morePlaces } = state.listeners;
+  let text = `${count} listening`;
+  if (places.length) {
+    text += ` from ${places.join(', ')}`;
+    if (morePlaces) text += ` and ${morePlaces} more ${morePlaces === 1 ? 'place' : 'places'}`;
+  }
+  $('listening').textContent = text;
 }
 
 // ---- Thank-you notes ---------------------------------------------------------

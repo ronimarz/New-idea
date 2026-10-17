@@ -9,7 +9,7 @@ A single global radio station that anyone can add to, meant to be left on in the
 - **Three questions make people think.** Everyone who adds a song answers three questions, such as "Why this song?", "What does it mean to you?" and "When did you first hear it?" Each answer needs at least 40 characters. The questions change on their own every week (or month), moving through a list of question sets that you manage on the admin page. The station starts with 8 sets. Each pick keeps the questions it was answered with.
 - **The answers are the DJ.** They show under the player while the song plays.
 - **Hearts, and nothing negative.** Listeners can heart a pick they love, once per song, and take it back. There are no downvotes, rankings or "top songs" lists. On your own pick you see "Your pick" and how many people love it, and who gave the hearts stays private. Hearted songs come back a little more often when the station replays past picks, up to 3 times as often.
-- **Listening together.** A live chat sits beside the station, and it marks which song was playing when people were talking.
+- **Listening together.** A line under the station name shows how many people are listening and where from. A live chat sits beside the station, and it marks which song was playing when people were talking.
 - **Thank-you notes.** Under any pick, "Say thanks" sends the person who chose it a private note. They see it the next time they visit, and nobody else ever can. They can clear notes they don't want to keep.
 - **Any genre, any YouTube video** that allows embedding, up to 15 minutes long.
 
