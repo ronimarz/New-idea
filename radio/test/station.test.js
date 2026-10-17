@@ -174,3 +174,27 @@ test('state survives a save and reload', () => {
   assert.deepEqual(copy.state(5000), s.state(5000));
   assert.equal(copy.add(song('ccccccccccc'), 'u3', 0).track.id, 3);
 });
+
+test('admin can remove a song, even the one on air', () => {
+  const s = new Station();
+  const a = s.add(song('aaaaaaaaaaa', 60), 'u1', 0).track;
+  const b = s.add(song('bbbbbbbbbbb', 60), 'u2', 0).track;
+  assert.equal(s.remove(a.id, 5000), true);
+  assert.equal(s.playing.trackId, b.id);
+  assert.equal(s.playing.startedAt, 5000);
+  assert.equal(s.byId(a.id), null);
+  assert.equal(s.remove(a.id, 5000), false);
+});
+
+test('admin can skip and remove everything from one person', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa', 60), 'troll', 0);
+  s.add(song('bbbbbbbbbbb', 60), 'troll', 0);
+  const c = s.add(song('ccccccccccc', 60), 'nice', 0).track;
+  assert.equal(s.removeBySubmitter('troll', 1000), 2);
+  assert.equal(s.playing.trackId, c.id);
+  assert.deepEqual(s.queue, []);
+  assert.equal(s.skip(2000), true);
+  assert.equal(s.playing.trackId, c.id); // the only song left comes round again
+  assert.equal(s.playing.startedAt, 2000);
+});

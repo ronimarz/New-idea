@@ -6,6 +6,8 @@ A single global radio station that anyone can add to. You paste a YouTube link, 
 - **It never goes quiet.** New picks play in the order they were added. When the queue is empty, the station replays past picks at random, skipping anything that played recently.
 - **The blurb is the DJ.** It shows under the player. Listeners can turn on "Read the blurbs aloud," which uses the browser's text-to-speech and turns the music down while it talks.
 - **Hearts, and nothing negative.** Listeners can heart a pick they love, once per song, and take it back. There are no downvotes, rankings or "top songs" lists. On your own pick you see "Your pick" and how many people love it, and who gave the hearts stays private. Hearted songs come back a little more often when the station replays past picks, up to 3 times as often.
+- **Listening together.** A live chat sits beside the station, and it marks which song was playing when people were talking. A line at the top shows how many people are listening and where from.
+- **Thank-you notes.** Under any pick, "Say thanks" sends the person who chose it a private note. They see it the next time they visit, and nobody else ever can. They can clear notes they don't want to keep.
 - **Any genre, any YouTube video** that allows embedding, up to 15 minutes long.
 
 Playback uses YouTube's embedded player, so YouTube handles the music rights. The station never stores or streams audio itself.
@@ -26,7 +28,20 @@ Settings, all optional:
 |---|---|---|
 | `PORT` | `3000` | Port to listen on. |
 | `DATA_FILE` | `radio/data/station.json` | Where the station's songs and schedule are saved. |
+| `ADMIN_TOKEN` | random | The admin password. If it isn't set, a new one is made at each start and printed in the terminal. |
 | `TRUST_PROXY` | off | Set to `1` behind a reverse proxy so the per-person limits use the real visitor IP. |
+
+## The admin page
+
+Go to `/admin` and sign in with the admin password. From there you can:
+
+- see every song with its blurb, status (on air, queued, played), plays and hearts, and search them
+- remove a song (if it's on air, the next one starts right away)
+- skip the current song
+- delete chat messages
+- ban a person, which removes all their songs, chat messages and notes and stops them posting again. Bans can be undone, but the removed posts can't come back.
+
+Private thank-you notes aren't shown on the admin page. Their recipient can clear them, and banning the sender removes all their notes.
 
 ## How adding a song works
 
@@ -42,11 +57,14 @@ These are basic, for a first version:
 - The same video can't be in the queue twice at once.
 - Names, locations and blurbs are length-limited, and they're always shown as plain text, never as HTML.
 
-There's no moderation queue or way to remove a song yet. Before you open it up publicly, you'll want at least an admin "remove" button, and maybe reporting or upvotes.
+- Chat allows one message every 2 seconds, and notes one every 10 seconds, with one note per song per person.
+
+People are identified by their internet address, since there are no accounts yet. People sharing Wi-Fi look like one person, and a determined troll can come back from a different network after a ban.
 
 ## Files
 
 - `station.js`: the station's rules (queue, rotation, timing, validation). It has no web or file code, so it's easy to test.
-- `server.js`: a small HTTP server. It serves the page, has `GET /api/state`, `POST /api/tracks` and `PUT`/`DELETE /api/tracks/:id/heart`, and saves to `DATA_FILE`.
-- `public/`: the web page.
-- `test/`: tests for `station.js`.
+- `community.js`: chat, thank-you notes and who's listening. Like `station.js`, it has no web or file code.
+- `server.js`: a small HTTP server. It serves the pages and the JSON API, checks the admin password and saves everything to `DATA_FILE`.
+- `public/`: the station page (`index.html`, `app.js`) and the admin page (`admin.html`, `admin.js`).
+- `test/`: tests for `station.js` and `community.js`.

@@ -161,6 +161,33 @@ class Station {
     return true;
   }
 
+  // Admin: take a song off the station entirely. If it's on air, the next one starts now.
+  remove(trackId, now = Date.now()) {
+    if (!this.byId(trackId)) return false;
+    this.tracks = this.tracks.filter((t) => t.id !== trackId);
+    this.queue = this.queue.filter((id) => id !== trackId);
+    this.history = this.history.filter((id) => id !== trackId);
+    if (this.playing && this.playing.trackId === trackId) {
+      this.playing = null;
+      this.startNext(now);
+    }
+    return true;
+  }
+
+  removeBySubmitter(submitter, now = Date.now()) {
+    const ids = this.tracks.filter((t) => t.submitter === submitter).map((t) => t.id);
+    for (const id of ids) this.remove(id, now);
+    return ids.length;
+  }
+
+  // Admin: end the current song early.
+  skip(now = Date.now()) {
+    if (!this.playing) return false;
+    this.playing = null;
+    this.startNext(now);
+    return true;
+  }
+
   // Hearts only ever add: there's no way to count against a song.
   heart(trackId, viewer, on = true) {
     const t = this.byId(trackId);
@@ -208,4 +235,4 @@ class Station {
   }
 }
 
-module.exports = { Station, parseYouTubeId, LIMITS };
+module.exports = { Station, parseYouTubeId, cleanText, LIMITS };

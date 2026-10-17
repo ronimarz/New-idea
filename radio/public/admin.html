@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Station Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="dot" aria-hidden="true"></span> Station admin</div>
+    <p class="tagline"><a href="/">Back to the station</a></p>
+  </header>
+
+  <main>
+    <section id="login" class="card">
+      <h2 class="label">Sign in</h2>
+      <form id="login-form">
+        <label>Admin password
+          <input id="token" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Sign in</button>
+        <p id="login-msg" class="form-msg err" role="status"></p>
+      </form>
+    </section>
+
+    <div id="panel" hidden>
+      <section class="card">
+        <div class="admin-bar">
+          <span id="summary"></span>
+          <span>
+            <button id="skip" type="button" class="secondary">Skip current song</button>
+            <button id="logout" type="button" class="secondary">Sign out</button>
+          </span>
+        </div>
+        <p class="hint">"Ban" blocks that person from posting songs, chat and notes, and removes everything they've posted. People are identified by a code made from their internet address.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="label">Songs</h2>
+        <input id="filter" placeholder="Search songs, names, blurbs…" aria-label="Search songs">
+        <ol id="tracks" class="tracks admin-list"></ol>
+      </section>
+
+      <section class="card">
+        <h2 class="label">Chat</h2>
+        <ol id="chat" class="tracks admin-list"></ol>
+        <p id="chat-empty" class="hint" hidden>No messages.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="label">Banned</h2>
+        <ol id="banned" class="tracks admin-list"></ol>
+        <p id="banned-empty" class="hint" hidden>Nobody is banned.</p>
+      </section>
+    </div>
+  </main>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

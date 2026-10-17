@@ -2,6 +2,7 @@
 
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 5000;
+const CHAT_POLL_MS = 2500;
 const DRIFT_TOLERANCE_SEC = 3;
 const MIN_BLURB = 100;
 const MAX_BLURB = 280;
@@ -13,6 +14,27 @@ let playerReady = false;
 let tunedIn = false;
 let loadedTrackId = null;
 let endTimer = null;
+
+// Name and location are remembered in this browser so people only type them once.
+function me() {
+  try {
+    return JSON.parse(localStorage.getItem('me')) || { name: '', location: '' };
+  } catch {
+    return { name: '', location: '' };
+  }
+}
+
+function rememberMe(name, location) {
+  try {
+    localStorage.setItem('me', JSON.stringify({ name: name.trim(), location: location.trim() }));
+  } catch {
+    // Private mode or storage blocked; nothing to remember then.
+  }
+}
+
+function clockTime(ms) {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
 
 function serverNow() {
   return Date.now() + clockOffset;
@@ -53,7 +75,8 @@ function parseYouTubeId(input) {
 async function fetchState() {
   try {
     const sent = Date.now();
-    const res = await fetch('/api/state', { cache: 'no-store' });
+    const from = encodeURIComponent(me().location);
+    const res = await fetch(`/api/state?from=${from}`, { cache: 'no-store' });
     const data = await res.json();
     clockOffset = data.serverTime - (sent + Date.now()) / 2;
     state = data;
@@ -114,6 +137,31 @@ async function toggleHeart(t) {
   }
 }
 
+// A private thank-you to the person who picked the song.
+function noteControl(t) {
+  if (t.mine) return null;
+  if (state.thanked.includes(t.id)) {
+    const span = document.createElement('span');
+    span.className = 'sent';
+    span.textContent = '✉ Thanks sent';
+    return span;
+  }
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'heart';
+  btn.textContent = '✉ Say thanks';
+  btn.title = `Send ${t.name} a private note`;
+  btn.addEventListener('click', () => openNote(t));
+  return btn;
+}
+
+function actions(t) {
+  const div = document.createElement('div');
+  div.className = 'actions';
+  div.append(...[heartControl(t), noteControl(t)].filter(Boolean));
+  return div;
+}
+
 function trackItem(t) {
   const li = document.createElement('li');
   const title = document.createElement('div');
@@ -125,7 +173,7 @@ function trackItem(t) {
   const blurb = document.createElement('div');
   blurb.className = 't-blurb';
   blurb.textContent = `“${t.blurb}”`;
-  li.append(title, meta, blurb, heartControl(t));
+  li.append(title, meta, blurb, actions(t));
   return li;
 }
 
@@ -139,7 +187,7 @@ function render() {
     $('np-name').textContent = np.name;
     $('np-from').textContent = np.location ? ` in ${np.location}` : '';
     $('np-blurb').textContent = np.blurb;
-    $('np-heart').replaceChildren(heartControl(np));
+    $('np-heart').replaceChildren(...actions(np).childNodes);
     $('np-total').textContent = fmt(np.duration);
     document.title = `${np.title} · Open Air Radio`;
   } else {
@@ -151,6 +199,166 @@ function render() {
   $('queue-count').textContent = state.queueLength ? `(${state.queueLength})` : '';
   $('recent').replaceChildren(...state.recent.map(trackItem));
   $('recent-empty').hidden = state.recent.length > 0;
+  renderListeners();
+  renderInbox();
+}
+
+function renderListeners() {
+  const { count, places, morePlaces } = state.listeners;
+  let text = `${count} ${count === 1 ? 'person' : 'people'} listening`;
+  if (places.length) {
+    text += ` from ${places.join(', ')}`;
+    if (morePlaces) text += ` and ${morePlaces} more ${morePlaces === 1 ? 'place' : 'places'}`;
+  }
+  $('listening').textContent = text;
+}
+
+// ---- Thank-you notes ---------------------------------------------------------
+
+const freshNotes = new Set(); // notes that were unread when this page first saw them
+let markingRead = false;
+
+function renderInbox() {
+  const { notes, unread } = state.inbox;
+  for (const n of notes) if (!n.read) freshNotes.add(n.id);
+  $('inbox').hidden = notes.length === 0;
+  $('inbox-new').textContent = freshNotes.size ? `${freshNotes.size} new` : '';
+  $('inbox-list').replaceChildren(
+    ...notes.map((n) => {
+      const li = document.createElement('li');
+      if (freshNotes.has(n.id)) li.className = 'fresh';
+      const text = document.createElement('div');
+      text.className = 'note-text';
+      text.textContent = n.text;
+      const meta = document.createElement('div');
+      meta.className = 't-meta';
+      meta.textContent = `${n.location ? `${n.name} in ${n.location}` : n.name} · about “${n.trackTitle}”`;
+      const hide = document.createElement('button');
+      hide.type = 'button';
+      hide.className = 'link';
+      hide.textContent = 'Clear';
+      hide.addEventListener('click', async () => {
+        await fetch(`/api/notes/${n.id}`, { method: 'DELETE' });
+        freshNotes.delete(n.id);
+        fetchState();
+      });
+      li.append(text, meta, hide);
+      return li;
+    })
+  );
+  // They've seen them now; the "new" highlight stays until they reload.
+  if (unread && !markingRead) {
+    markingRead = true;
+    fetch('/api/notes/read', { method: 'POST' }).finally(() => (markingRead = false));
+  }
+}
+
+let noteTrack = null;
+
+function openNote(t) {
+  noteTrack = t;
+  const who = me();
+  $('note-heading').textContent = `Say thanks to ${t.name}`;
+  $('note-song').textContent = `For picking “${t.title}”`;
+  $('note-private').textContent = `Only ${t.name} will see this, the next time they visit.`;
+  $('n-text').value = '';
+  $('n-name').value = who.name;
+  $('n-location').value = who.location;
+  $('note-msg').textContent = '';
+  $('note-dialog').showModal();
+  $('n-text').focus();
+}
+
+async function onNoteSubmit(e) {
+  e.preventDefault();
+  const name = $('n-name').value;
+  const location = $('n-location').value;
+  rememberMe(name, location);
+  $('note-send').disabled = true;
+  try {
+    const res = await fetch(`/api/tracks/${noteTrack.id}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: $('n-text').value, name, location }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Something went wrong.');
+    state.thanked.push(noteTrack.id);
+    render();
+    $('note-dialog').close();
+  } catch (err) {
+    $('note-msg').textContent = err.message;
+  } finally {
+    $('note-send').disabled = false;
+  }
+}
+
+// ---- Live chat -----------------------------------------------------------------
+
+let lastChatId = 0;
+let lastChatTrack = null;
+
+function chatLine(m) {
+  const items = [];
+  if (m.trackId && m.trackId !== lastChatTrack) {
+    const divider = document.createElement('li');
+    divider.className = 'chat-song';
+    divider.textContent = `♪ ${m.trackTitle}`;
+    items.push(divider);
+  }
+  lastChatTrack = m.trackId;
+  const li = document.createElement('li');
+  if (m.mine) li.className = 'mine-msg';
+  const meta = document.createElement('div');
+  meta.className = 't-meta';
+  const who = document.createElement('strong');
+  who.textContent = m.name;
+  meta.append(who, `${m.location ? ` · ${m.location}` : ''} · ${clockTime(m.at)}`);
+  const text = document.createElement('div');
+  text.textContent = m.text;
+  li.append(meta, text);
+  items.push(li);
+  return items;
+}
+
+async function fetchChat() {
+  try {
+    const res = await fetch(`/api/chat?after=${lastChatId}`, { cache: 'no-store' });
+    const { messages } = await res.json();
+    if (!messages.length) return;
+    const log = $('chat-log');
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+    for (const m of messages) log.append(...chatLine(m));
+    lastChatId = messages[messages.length - 1].id;
+    while (log.children.length > 300) log.firstElementChild.remove();
+    $('chat-empty').hidden = true;
+    if (atBottom || messages.some((m) => m.mine)) log.scrollTop = log.scrollHeight;
+  } catch {
+    // Try again on the next poll.
+  }
+}
+
+async function onChatSubmit(e) {
+  e.preventDefault();
+  const text = $('c-text').value.trim();
+  if (!text) return;
+  const name = $('c-name').value;
+  const location = $('c-location').value;
+  rememberMe(name, location);
+  $('chat-msg').textContent = '';
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, name, location }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Something went wrong.');
+    $('c-text').value = '';
+    fetchChat();
+  } catch (err) {
+    $('chat-msg').textContent = err.message;
+  }
 }
 
 function tickProgress() {
@@ -326,6 +534,7 @@ async function onSubmit(e) {
         location: $('f-location').value,
       }),
     });
+    rememberMe($('f-name').value, $('f-location').value);
     const body = await res.json();
     if (!res.ok) throw new Error(body.error || 'Something went wrong.');
     msg.className = 'form-msg ok';
@@ -389,7 +598,17 @@ $('f-location').addEventListener('input', updateSubmit);
 updateBlurbCount();
 $('add-form').addEventListener('submit', onSubmit);
 $('tune-in').addEventListener('click', tuneIn);
+$('chat-form').addEventListener('submit', onChatSubmit);
+$('note-form').addEventListener('submit', onNoteSubmit);
+$('note-cancel').addEventListener('click', () => $('note-dialog').close());
+
+for (const [nameId, locId] of [['f-name', 'f-location'], ['c-name', 'c-location']]) {
+  $(nameId).value = me().name;
+  $(locId).value = me().location;
+}
 
 fetchState();
+fetchChat();
+setInterval(fetchChat, CHAT_POLL_MS);
 setInterval(fetchState, POLL_MS);
 setInterval(tickProgress, 500);

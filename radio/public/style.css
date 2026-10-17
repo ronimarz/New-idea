@@ -238,3 +238,89 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
 .np-heart { margin: -4px 0 14px; }
+
+.listening { margin: 6px 0 0; font-size: 0.9rem; color: var(--muted); }
+.listening:not(:empty)::before { content: "● "; color: #2e8b57; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.actions .heart, .actions .mine, .actions .sent { margin-top: 6px; }
+.sent { display: inline-block; font-size: 0.9rem; color: var(--muted); }
+
+.inbox { border-color: var(--accent); }
+.new-badge:not(:empty) {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.notes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 10px; }
+.notes li { padding: 12px 14px; background: var(--quote); border-radius: 8px; }
+.notes li.fresh { box-shadow: inset 3px 0 0 var(--accent); }
+.note-text { white-space: pre-wrap; }
+
+button.link {
+  background: none;
+  color: var(--muted);
+  padding: 0;
+  font-weight: 400;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  margin-top: 4px;
+}
+
+button.secondary { background: transparent; color: var(--text); border: 1px solid var(--line); }
+
+.chat-log {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+}
+.chat-log li { overflow-wrap: anywhere; }
+.chat-log .mine-msg { padding-left: 10px; border-left: 2px solid var(--accent); }
+.chat-song {
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-align: center;
+  padding: 2px 0;
+}
+.chat-form { gap: 8px; }
+.chat-me, .chat-send { display: flex; gap: 8px; }
+.chat-me input { font-size: 0.9rem; padding: 8px 10px; }
+.chat-send input { flex: 1; }
+.chat-form .form-msg:empty { display: none; }
+
+.note-dialog {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--text);
+  width: min(460px, calc(100vw - 32px));
+  padding: 20px;
+}
+.note-dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+.note-heading { margin: 0; font-size: 1.2rem; }
+.dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+
+a { color: var(--accent); }
+.admin-bar { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.admin-bar button { padding: 7px 14px; font-size: 0.9rem; }
+.admin-list { margin-top: 12px; }
+.admin-list .actions button { padding: 5px 12px; font-size: 0.85rem; margin-top: 6px; }
+.status {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--quote);
+  color: var(--muted);
+}
+button.danger { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.admin-row { display: flex; justify-content: space-between; align-items: center; }
