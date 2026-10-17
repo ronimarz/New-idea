@@ -676,10 +676,43 @@ function updateSubmit() {
   );
 }
 
+// Tell people straight away if the song is already on the station: it won't be queued
+// again, but their answers will be added to it.
+let lookupFor = null;
+
+async function checkAlready(id) {
+  lookupFor = id;
+  showAlready(null);
+  if (!id) return;
+  try {
+    const res = await fetch(`/api/lookup?v=${encodeURIComponent(id)}`, { cache: 'no-store' });
+    const info = await res.json();
+    if (lookupFor === id) showAlready(info.exists ? info : null);
+  } catch {
+    // If the check fails, the server still handles it when they submit.
+  }
+}
+
+function showAlready(info) {
+  $('already').hidden = !info;
+  $('f-submit').textContent = info ? 'Add my answers' : 'Add to the queue';
+  if (!info) return;
+  const people = info.picks === 1 ? '1 person has' : `${info.picks} people have`;
+  const when = info.onAir
+    ? "It's playing right now."
+    : info.position
+      ? `It's number ${info.position} in the queue.`
+      : "It already played and comes round again when the station replays past picks.";
+  $('already').textContent =
+    `“${info.title}” is already on the station (${people} picked it). ${when} ` +
+    "It won't be added to the queue again, but you can still answer the questions and your answers will be shown with it.";
+}
+
 function onUrlInput() {
   const id = parseYouTubeId($('f-url').value);
   pending = null;
   updateSubmit();
+  checkAlready(id);
   if (!id) {
     $('preview-wrap').hidden = true;
     setPreviewStatus($('f-url').value.trim() ? "That doesn't look like a YouTube link." : '');
@@ -755,9 +788,10 @@ async function onSubmit(e) {
     msg.className = 'form-msg ok';
     const where = body.position ? `It's number ${body.position} in the queue.` : "It's on the air right now.";
     msg.textContent = body.joined
-      ? `That song was already on the station, so your answers were added to it. ${where}`
+      ? 'Thanks! Your answers were added to the song.'
       : `Added! ${where}`;
     $('f-url').value = '';
+    showAlready(null);
     for (const f of answerFields()) {
       f.value = '';
       updateAnswerCount(f);

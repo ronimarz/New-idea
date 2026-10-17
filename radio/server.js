@@ -4,7 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { Station, LANGUAGES, languageRule, picksOf } = require('./station');
+const { Station, LANGUAGES, languageRule, picksOf, parseYouTubeId } = require('./station');
 const { Chat, Notes, Presence } = require('./community');
 const { Questions } = require('./questions');
 
@@ -288,6 +288,13 @@ async function handle(req, res) {
   if (m && req.method === 'DELETE') {
     if (notes.hide(Number(m[1]), key)) save();
     return sendJson(res, 200, { ok: true });
+  }
+
+  if (req.method === 'GET' && pathname === '/api/lookup') {
+    const videoId = parseYouTubeId(url.searchParams.get('v') || '');
+    if (!videoId) return sendJson(res, 400, { error: "That doesn't look like a YouTube link." });
+    station.tick(now);
+    return sendJson(res, 200, station.lookup(videoId));
   }
 
   if (req.method === 'GET' && pathname === '/api/chat') {

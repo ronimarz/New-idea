@@ -137,14 +137,32 @@ test('a song already on the station gets the new pick instead of a copy', () => 
   assert.equal(next.picks[0].location, 'Seoul');
 });
 
-test('a pick of a song that already played queues it again', () => {
+test('a pick of a song that already played adds the answers but never queues it again', () => {
   const s = new Station();
   const a = s.add(song('aaaaaaaaaaa', 10), 'u1', 0).track;
   s.add(song('bbbbbbbbbbb', 60), 'u2', 0);
   s.tick(15_000); // a has played; b is on air
-  s.add(song('aaaaaaaaaaa', 10), 'u3', 15_000);
-  assert.deepEqual(s.queue, [a.id]);
+  const r = s.add(song('aaaaaaaaaaa', 10), 'u3', 15_000);
+  assert.equal(r.joined, true);
+  assert.deepEqual(s.queue, []);
   assert.equal(s.byId(a.id).picks.length, 2);
+});
+
+test('joining a song does not count toward the songs-waiting limit', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa'), 'u0', 0); // on air
+  for (const v of ['bbbbbbbbbbb', 'ccccccccccc', 'ddddddddddd']) s.add(song(v), 'other', 0);
+  for (const v of ['eeeeeeeeeee', 'fffffffffff', 'ggggggggggg']) s.add(song(v), 'u1', 0);
+  assert.ok(s.add(song('bbbbbbbbbbb'), 'u1', 0).joined); // u1 already has 3 waiting
+});
+
+test('lookup says whether a song is already on the station', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa', 60, { title: 'Holocene' }), 'u1', 0);
+  s.add(song('bbbbbbbbbbb', 60), 'u2', 0);
+  assert.deepEqual(s.lookup('aaaaaaaaaaa'), { exists: true, title: 'Holocene', picks: 1, onAir: true, position: 0 });
+  assert.equal(s.lookup('bbbbbbbbbbb').position, 1);
+  assert.deepEqual(s.lookup('zzzzzzzzzzz'), { exists: false });
 });
 
 test('a pick of the song on air joins it without queueing it again', () => {

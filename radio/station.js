@@ -210,6 +210,15 @@ class Station {
     return this.tracks.find((t) => t.videoId === videoId) || null;
   }
 
+  // Whether a song is already on the station, so people know before they fill in the form.
+  lookup(videoId) {
+    const t = this.byVideo(videoId);
+    if (!t) return { exists: false };
+    const onAir = !!this.playing && this.playing.trackId === t.id;
+    const position = this.queue.indexOf(t.id) + 1;
+    return { exists: true, title: t.title, picks: t.picks.length, onAir, position };
+  }
+
   validate(input, questions = DEFAULT_QUESTIONS) {
     const videoId = parseYouTubeId(input && (input.videoId || input.url));
     if (!videoId) return { error: "That doesn't look like a YouTube link." };
@@ -241,8 +250,8 @@ class Station {
     return { value };
   }
 
-  // Adds someone's pick. If the song is already on the station, their pick joins it
-  // rather than making a copy. Returns { track, pick, joined }.
+  // Adds someone's pick. If the song is already on the station, their answers are added
+  // to it; it is never queued a second time. Returns { track, pick, joined }.
   add(input, submitter, now = Date.now(), questions = DEFAULT_QUESTIONS) {
     const { error, value } = this.validate(input, questions);
     if (error) return { error };
@@ -252,9 +261,7 @@ class Station {
     if (track && track.picks.some((p) => p.submitter === submitter)) {
       return { error: "You've already picked this song." };
     }
-    const onAir = track && this.playing && this.playing.trackId === track.id;
-    const queued = track && this.queue.includes(track.id);
-    if (!onAir && !queued) {
+    if (!track) {
       const pending = this.queue.filter((id) => pickedByViewer(this.byId(id), submitter)).length;
       if (pending >= LIMITS.maxQueuedPerSubmitter) {
         return { error: `You already have ${pending} songs waiting. Let those play first.` };
@@ -262,8 +269,6 @@ class Station {
     }
     if (track) {
       track.picks.push(pick);
-      // Someone new wants to hear it, so it comes round again (unless it's on now or waiting).
-      if (!onAir && !queued) this.queue.push(track.id);
     } else {
       track = { id: this.nextId++, videoId, duration, title, language, ...(flag ? { flag } : {}),
         addedAt: now, plays: 0, hearts: [], picks: [pick] };

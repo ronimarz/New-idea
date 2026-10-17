@@ -327,3 +327,4 @@ form label .hint { display: inline; font-weight: 400; }
 .tracks .answers { margin: 4px 0 6px; }
 .also { margin-top: 14px; }
 .also details[open] { padding-left: 12px; border-left: 2px solid var(--line); }
+.already { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--soft); font-size: 0.9rem; }
