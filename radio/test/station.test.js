@@ -413,3 +413,29 @@ test('admin can skip and remove everything from one person', () => {
   assert.equal(s.playing.trackId, c.id); // the only song left comes round again
   assert.equal(s.playing.startedAt, 2000);
 });
+
+test('history lists everything that has played, most recent first, and pages back', () => {
+  const s = new Station();
+  for (let i = 0; i < 5; i++) s.add(song(String(i).padStart(11, 'x'), 10, { title: `Song ${i}` }), `u${i}`, 0);
+  s.tick(45_000); // songs 0-3 have played, song 4 is on air
+  const page = s.archive({ limit: 2 });
+  assert.deepEqual(page.tracks.map((t) => t.title), ['Song 3', 'Song 2']);
+  assert.equal(page.more, true);
+  const next = s.archive({ limit: 2, before: page.tracks.at(-1).lastPlayedAt });
+  assert.deepEqual(next.tracks.map((t) => t.title), ['Song 1', 'Song 0']);
+  assert.equal(next.more, false);
+  assert.ok(!s.archive().tracks.some((t) => t.title === 'Song 4')); // on air, not history yet
+});
+
+test('history search looks through titles, names, places and answers', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa', 10, { title: 'Harvest Moon', name: 'Roni', location: 'Austin' }), 'u1', 0);
+  s.add(song('bbbbbbbbbbb', 10, { title: 'Holocene', name: 'Ada', location: 'Lagos',
+    answers: ['A night bus across Norway in the snow.'.padEnd(45, '.'), 'x'.repeat(45), 'y'.repeat(45)] }), 'u2', 0);
+  s.add(song('ccccccccccc', 10), 'u3', 0);
+  s.tick(25_000);
+  assert.deepEqual(s.archive({ q: 'harvest' }).tracks.map((t) => t.title), ['Harvest Moon']);
+  assert.deepEqual(s.archive({ q: 'lagos' }).tracks.map((t) => t.title), ['Holocene']);
+  assert.deepEqual(s.archive({ q: 'norway snow' }).tracks.map((t) => t.title), ['Holocene']);
+  assert.deepEqual(s.archive({ q: 'nothing like this' }).tracks, []);
+});

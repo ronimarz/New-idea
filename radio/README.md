@@ -1,9 +1,9 @@
 # Open Air Radio
 
-A single global radio station that anyone can add to, meant to be left on in the background all day, like the Lofi Girl stream on YouTube. You paste a YouTube link, say where you're listening from, and answer three questions about the song. Your song joins the queue, and when it plays, everyone listening sees your answers and location next to it.
+A single global radio station that works like a jukebox anyone can play: meant to be left on in the background all day, like the Lofi Girl stream on YouTube, and built for discovering music through the people who chose it. You paste a YouTube link, say where you're listening from, and answer three questions about the song. Your song joins the queue, and when it plays, everyone listening sees your answers and location next to it.
 
 - **Everyone hears the same thing.** The server keeps one schedule, and every listener's player jumps to the same spot in the current song.
-- **A simple page, made to leave on.** The player and the current pick sit up top with the chat beside them. "Add a song" opens only when you click it, and Up next and Recently played are short lists; click a song to read its answers. When a song ends, the next one starts right away, even in a background tab. Returning listeners start playing without clicking, if their browser allows it. The tab title shows what's playing.
+- **A simple page, made to leave on.** The player and the current pick sit up top with the chat beside them. "Add a song" opens only when you click it, and Up next is a short list; click a song to read its answers. When a song ends, the next one starts right away, even in a background tab. Returning listeners start playing without clicking, if their browser allows it. The tab title shows what's playing.
 - **English songs and instrumentals, for now.** People say whether a song's lyrics are in English or it's instrumental; anything else is turned away. A title written mostly in another script (Korean, Cyrillic…) gets a warning badge on the admin page so you can check it.
 - **One song, many picks.** A song is only ever added once. When someone pastes a link to a song that's already on the station, they're told straight away (and whether it's playing, queued, or already played). It won't be queued again, but they can still answer the questions, and their answers are added to the song. On air, the newest pick leads and everyone else is listed under "Also picked by". Hearts belong to the song; "Thank" goes to one person's pick. Each person can pick a song once.
 - **It never goes quiet, and it doesn't repeat itself.** New picks play in the order they were added. When the queue is empty, the station replays past picks like a shuffled deck: every song plays once, in a random order, before any song plays again, and each new round avoids starting with songs that just played. The admin page shows how long a full round lasts.
@@ -12,6 +12,7 @@ A single global radio station that anyone can add to, meant to be left on in the
 - **Hearts, and nothing negative.** Listeners can heart a pick they love, once per song, and take it back. There are no downvotes, rankings or "top songs" lists. On your own pick you see "Your pick" and how many people love it, and who gave the hearts stays private. Hearts don't change how often a song plays.
 - **Listening together.** A line under the station name shows how many people are listening and where from. A live chat sits beside the station, and it marks which song was playing when people were talking.
 - **Thank-you notes.** Under any pick, "Say thanks" sends the person who chose it a private note. They see it the next time they visit, and nobody else ever can. They can clear notes they don't want to keep.
+- **Everything that's played stays.** "Played so far" lists every song that has played, most recent first, with when it last played and everyone's answers. You can search it (song, name, place, or anything in the answers) and keep going back with "Show more". Every song has an "Open on YouTube" link, so you can take a discovery with you.
 - **Any genre, any YouTube video** that allows embedding, up to 15 minutes long.
 
 Playback uses YouTube's embedded player, so YouTube handles the music rights. The station never stores or streams audio itself.
@@ -74,6 +75,6 @@ People are identified by their internet address, since there are no accounts yet
 - `station.js`: the station's rules (queue, rotation, timing, validation). It has no web or file code, so it's easy to test.
 - `questions.js`: the question sets (saved with the station's data), the starter sets, and the weekly or monthly rotation.
 - `community.js`: chat, thank-you notes and who's listening. Like `station.js`, it has no web or file code.
-- `server.js`: a small HTTP server (`GET /api/lookup?v=<video id>` tells the page whether a song is already on the station). It serves the pages and the JSON API, checks the admin password and saves everything to `DATA_FILE`.
+- `server.js`: a small HTTP server (`GET /api/lookup?v=<video id>` tells the page whether a song is already on the station; `GET /api/history?q=&before=` pages through everything that has played). It serves the pages and the JSON API, checks the admin password and saves everything to `DATA_FILE`.
 - `public/`: the station page (`index.html`, `app.js`) and the admin page (`admin.html`, `admin.js`).
 - `test/`: tests for `station.js`, `questions.js` and `community.js`.

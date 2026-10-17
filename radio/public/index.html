@@ -97,10 +97,13 @@
         <ol id="up-next" class="tracks"></ol>
         <p id="next-empty" class="hint">Nothing new queued. Past picks are replaying.</p>
       </section>
-      <section aria-labelledby="recent-heading">
-        <h2 id="recent-heading" class="label">Recently played</h2>
-        <ol id="recent" class="tracks"></ol>
-        <p id="recent-empty" class="hint">Nothing yet.</p>
+      <section aria-labelledby="past-heading">
+        <h2 id="past-heading" class="label">Played so far</h2>
+        <input id="past-search" type="search" placeholder="Search songs, people, places, answers…"
+          aria-label="Search everything that has played">
+        <ol id="past" class="tracks"></ol>
+        <p id="past-empty" class="hint">Nothing has played yet.</p>
+        <button id="past-more" type="button" class="secondary small" hidden>Show more</button>
       </section>
     </div>
   </main>

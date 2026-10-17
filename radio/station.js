@@ -119,6 +119,8 @@ function publicTrack(t, viewer) {
     hearts: hearts.length,
     hearted: viewer != null && hearts.includes(viewer),
     mine: pickedByViewer(t, viewer),
+    plays: t.plays || 0,
+    lastPlayedAt: t.lastPlayedAt ?? null,
   };
 }
 
@@ -165,6 +167,12 @@ function migrate(data) {
     remap.set(song.id, same.id);
   }
   const to = (id) => (remap.has(id) ? remap.get(id) : id);
+  // Songs that played before play times were kept: use the order they last played in.
+  const lastIndex = new Map((data.history || []).map((id, i) => [to(id), i]));
+  for (const t of tracks) {
+    if (t.lastPlayedAt != null || !t.plays) continue;
+    t.lastPlayedAt = (t.addedAt || 0) + (lastIndex.has(t.id) ? lastIndex.get(t.id) + 1 : 0);
+  }
   return {
     tracks,
     nextPickId,
@@ -305,7 +313,9 @@ class Station {
     this.playing = { trackId: id, startedAt: at };
     this.history.push(id);
     if (this.history.length > LIMITS.historySize) this.history.shift();
-    this.byId(id).plays++;
+    const t = this.byId(id);
+    t.plays++;
+    t.lastPlayedAt = at;
     if (!this.round.includes(id)) this.round.push(id);
     return true;
   }
@@ -395,6 +405,27 @@ class Station {
       if (!pool.length) pool = candidates;
     }
     return pool[Math.floor(this.random() * pool.length)].id;
+  }
+
+  // Everything that has played, most recently played first, like a jukebox's history.
+  // `q` searches titles, names, places and answers; `before` pages back in time.
+  archive({ before = Infinity, q = '', limit = 30, viewer = null } = {}) {
+    const words = cleanText(q, 100).toLowerCase().split(' ').filter(Boolean);
+    const onAir = this.playing && this.playing.trackId;
+    const matches = (t) => {
+      if (!words.length) return true;
+      const text = [t.title, ...t.picks.flatMap((p) => [p.name, p.location, ...p.answers.map((a) => a.answer)])]
+        .join(' ')
+        .toLowerCase();
+      return words.every((w) => text.includes(w));
+    };
+    const played = this.tracks
+      .filter((t) => t.lastPlayedAt != null && t.id !== onAir && t.lastPlayedAt < before && matches(t))
+      .sort((a, b) => b.lastPlayedAt - a.lastPlayedAt);
+    return {
+      tracks: played.slice(0, limit).map((t) => publicTrack(t, viewer)),
+      more: played.length > limit,
+    };
   }
 
   // How long it takes to play every song once: the longest stretch before a repeat.

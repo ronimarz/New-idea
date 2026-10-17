@@ -156,7 +156,7 @@ function heartControl(t) {
 async function toggleHeart(t) {
   const on = !t.hearted;
   const apply = (hearted, hearts) => {
-    for (const x of [state.nowPlaying, ...state.upNext, ...state.recent]) {
+    for (const x of [state.nowPlaying, ...state.upNext, ...past.tracks]) {
       if (x && x.id === t.id) Object.assign(x, { hearted, hearts });
     }
     render();
@@ -234,18 +234,76 @@ function pickBody(t, p) {
 }
 
 // In the lists: the song and who picked it; everyone's answers open on a click.
+function youtubeLink(t) {
+  const a = document.createElement('a');
+  a.href = `https://www.youtube.com/watch?v=${t.videoId}`;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.className = 'yt';
+  a.textContent = 'Open on YouTube ↗';
+  return a;
+}
+
+function playedWhen(ms) {
+  const d = new Date(ms);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const today = new Date();
+  const yesterday = new Date(today.getTime() - 24 * 3600 * 1000);
+  if (d.toDateString() === today.toDateString()) return time;
+  if (d.toDateString() === yesterday.toDateString()) return `yesterday ${time}`;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
 function trackItem(t, list) {
   const li = document.createElement('li');
   const title = document.createElement('strong');
   title.textContent = t.title;
+  const summary = [title, ` · ${pickedBySummary(t)}`];
+  if (list === 'past' && t.lastPlayedAt != null) {
+    const when = document.createElement('span');
+    when.className = 'when';
+    when.textContent = ` · ${playedWhen(t.lastPlayedAt)}`;
+    summary.push(when);
+  }
   const body = t.picks.flatMap((p) => {
     const who = document.createElement('div');
     who.className = 'pick-who';
     who.textContent = pickedBy(p);
     return [who, ...pickBody(t, p)];
   });
-  li.append(openable(`${list}:${t.id}`, [title, ` · ${pickedBySummary(t)}`], [...body, actions(heartControl(t))]));
+  li.append(openable(`${list}:${t.id}`, summary, [...body, actions(heartControl(t), youtubeLink(t))]));
   return li;
+}
+
+// ---- Played so far: the jukebox's history ------------------------------------
+
+const PAST_PAGE = 30;
+let past = { tracks: [], more: false, q: '' };
+let pastFor = null; // the airing the history was last loaded for
+let pastRequest = 0;
+
+async function loadPast(append) {
+  const ask = ++pastRequest;
+  const params = new URLSearchParams();
+  if (past.q) params.set('q', past.q);
+  if (append && past.tracks.length) params.set('before', past.tracks.at(-1).lastPlayedAt);
+  try {
+    const res = await fetch(`/api/history?${params}`, { cache: 'no-store' });
+    const page = await res.json();
+    if (ask !== pastRequest) return; // a newer search has started
+    past.tracks = append ? past.tracks.concat(page.tracks) : page.tracks;
+    past.more = page.more;
+    renderPast();
+  } catch {
+    // Try again when the next song starts.
+  }
+}
+
+function renderPast() {
+  $('past').replaceChildren(...past.tracks.map((t) => trackItem(t, 'past')));
+  $('past-empty').hidden = past.tracks.length > 0;
+  $('past-empty').textContent = past.q ? 'Nothing matches that search.' : 'Nothing has played yet.';
+  $('past-more').hidden = !past.more;
 }
 
 // Under the song on air: everyone else who picked it.
@@ -272,7 +330,7 @@ function render() {
       ? `Next: ${nx.title}`
       : '';
     $('np-answers').replaceChildren(...answerList(lead(np).answers));
-    $('np-heart').replaceChildren(...[heartControl(np), noteControl(np, lead(np))].filter(Boolean));
+    $('np-heart').replaceChildren(...[heartControl(np), noteControl(np, lead(np)), youtubeLink(np)].filter(Boolean));
     renderAlso(np);
     $('np-total').textContent = fmt(np.duration);
     document.title = `♪ ${np.title} · Open Air Radio`;
@@ -283,8 +341,13 @@ function render() {
   $('up-next').replaceChildren(...state.upNext.map((t) => trackItem(t, 'next')));
   $('next-empty').hidden = state.upNext.length > 0 || !np;
   $('queue-count').textContent = state.queueLength ? `(${state.queueLength})` : '';
-  $('recent').replaceChildren(...state.recent.map((t) => trackItem(t, 'recent')));
-  $('recent-empty').hidden = state.recent.length > 0;
+  // A new song started, so the one before it joins the history.
+  const key = np ? `${np.id}@${np.startedAt}` : '';
+  if (key !== pastFor) {
+    pastFor = key;
+    if (!past.q && past.tracks.length <= PAST_PAGE) loadPast(false);
+  }
+  renderPast();
   renderLanguages();
   renderListeners();
   renderQuestions(state.questions);
@@ -855,6 +918,16 @@ for (const [nameId, locId] of [['f-name', 'f-location'], ['c-name', 'c-location'
   $(nameId).value = me().name;
   $(locId).value = me().location;
 }
+
+let searchTimer = null;
+$('past-search').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    past.q = $('past-search').value.trim();
+    loadPast(false);
+  }, 300);
+});
+$('past-more').addEventListener('click', () => loadPast(true));
 
 fetchState();
 fetchChat();

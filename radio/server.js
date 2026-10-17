@@ -291,6 +291,12 @@ async function handle(req, res) {
     return sendJson(res, 200, { ok: true });
   }
 
+  if (req.method === 'GET' && pathname === '/api/history') {
+    station.tick(now);
+    const before = Number(url.searchParams.get('before')) || Infinity;
+    return sendJson(res, 200, station.archive({ before, q: url.searchParams.get('q') || '', viewer: key }));
+  }
+
   if (req.method === 'GET' && pathname === '/api/lookup') {
     const videoId = parseYouTubeId(url.searchParams.get('v') || '');
     if (!videoId) return sendJson(res, 400, { error: "That doesn't look like a YouTube link." });

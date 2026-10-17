@@ -328,3 +328,9 @@ form label .hint { display: inline; font-weight: 400; }
 .also { margin-top: 14px; }
 .also details[open] { padding-left: 12px; border-left: 2px solid var(--line); }
 .already { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--soft); font-size: 0.9rem; }
+.yt { font-size: 0.85rem; color: var(--muted); margin-left: 4px; }
+.when { color: var(--muted); font-size: 0.85rem; }
+#past-search { margin-bottom: 8px; }
+#past-more { margin-top: 10px; }
+button.small { padding: 6px 14px; font-size: 0.85rem; }
+@media (min-width: 900px) { .lists { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); } }
