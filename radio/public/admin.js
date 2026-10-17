@@ -42,6 +42,13 @@ function showLogin(message = '') {
   $('login-msg').textContent = message;
 }
 
+function length(sec) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.round((sec % 3600) / 60);
+  if (!h) return `${m} minute${m === 1 ? '' : 's'}`;
+  return `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} min` : ''}`;
+}
+
 function when(ms) {
   return new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 }
@@ -170,6 +177,10 @@ function render() {
   renderQuestions();
   $('summary').textContent =
     `${data.tracks.length} songs · ${data.listeners} listening now · ${data.banned.length} banned`;
+  $('round').textContent = data.tracks.length
+    ? `Every song plays once before any song repeats. With ${data.tracks.length} songs, ` +
+      `that's ${length(data.roundSeconds)} of music before the first repeat.`
+    : '';
 
   const q = $('filter').value.trim().toLowerCase();
   const tracks = data.tracks.filter(

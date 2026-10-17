@@ -259,23 +259,60 @@ test('hearts: one per person, can be taken back, never on your own pick', () => 
   assert.equal(JSON.stringify(s.state(0, 'fan1')).includes('fan1'), false); // who hearted stays private
 });
 
-test('hearted songs come back more often in rotation', () => {
-  let seed = 1;
-  const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const s = new Station({}, { random });
-  // Enough songs that rotation has a real choice after skipping the 10 most recent.
-  const ids = [];
-  for (let i = 0; i < 15; i++) {
-    ids.push(s.add(song(String(i).padStart(11, 'x'), 10), `u${i}`, 0).track.id);
-  }
-  for (let i = 0; i < 10; i++) s.heart(ids[0], `fan${i}`);
-  const plays = {};
-  for (let t = 150_000; t < 150_000 + 3000 * 10_000; t += 10_000) {
+// Plays `count` past picks back to back with nothing queued; returns the ids in order.
+function playRotation(s, start, count) {
+  const order = [];
+  let t = start;
+  for (let i = 0; i < count; i++) {
     s.tick(t);
-    plays[s.playing.trackId] = (plays[s.playing.trackId] || 0) + 1;
+    order.push(s.playing.trackId);
+    t = s.playing.startedAt + s.byId(s.playing.trackId).duration * 1000;
   }
-  const others = ids.slice(1).map((id) => plays[id]);
-  assert.ok(plays[ids[0]] > Math.max(...others), JSON.stringify(plays));
+  return order;
+}
+
+function seeded(seed = 1) {
+  return () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+}
+
+test('every song plays once before any song repeats', () => {
+  const s = new Station({}, { random: seeded() });
+  for (let i = 0; i < 12; i++) s.add(song(String(i).padStart(11, 'x'), 10 + i), `u${i}`, 0);
+  // The first round is the 12 new songs playing from the queue; count from the end of it.
+  const order = playRotation(s, s.roundLength() * 1000, 12 * 5);
+  for (let r = 0; r < 5; r++) {
+    const round = order.slice(r * 12, r * 12 + 12);
+    assert.equal(new Set(round).size, 12, `round ${r} repeats a song: ${round}`);
+  }
+  // Rounds are shuffled differently each time.
+  assert.notDeepEqual(order.slice(0, 12), order.slice(12, 24));
+});
+
+test('a new round never starts with a song that just played', () => {
+  const s = new Station({}, { random: seeded(7) });
+  for (let i = 0; i < 6; i++) s.add(song(String(i).padStart(11, 'x'), 10), `u${i}`, 0);
+  const order = playRotation(s, s.roundLength() * 1000, 6 * 20);
+  for (let i = 1; i < order.length; i++) assert.notEqual(order[i], order[i - 1]);
+  for (let r = 1; r < 20; r++) {
+    const endOfLast = order.slice(r * 6 - 3, r * 6);
+    assert.ok(!endOfLast.includes(order[r * 6]), `round ${r} starts with a song from the end of the last`);
+  }
+});
+
+test('hearts never make a song repeat sooner', () => {
+  const s = new Station({}, { random: seeded(3) });
+  const ids = [];
+  for (let i = 0; i < 8; i++) ids.push(s.add(song(String(i).padStart(11, 'x'), 10), `u${i}`, 0).track.id);
+  for (let i = 0; i < 10; i++) s.heart(ids[0], `fan${i}`);
+  const order = playRotation(s, s.roundLength() * 1000, 8 * 10);
+  assert.equal(order.filter((id) => id === ids[0]).length, 10);
+});
+
+test('the round length is the time to play every song once', () => {
+  const s = new Station();
+  s.add(song('aaaaaaaaaaa', 200), 'u1', 0);
+  s.add(song('bbbbbbbbbbb', 100), 'u2', 0);
+  assert.equal(s.roundLength(), 300);
 });
 
 test('only accepts the languages the station is set up for', () => {

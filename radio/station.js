@@ -186,6 +186,8 @@ class Station {
     this.nextPickId = m.nextPickId;
     // A past pick chosen ahead of time, so listeners know what follows the current song.
     this.nextPick = m.nextPick;
+    // Songs played in the current round. Every song plays once before any song repeats.
+    this.round = data.round || [];
     this.random = random;
     this.languages = languages;
   }
@@ -199,6 +201,7 @@ class Station {
       nextId: this.nextId,
       nextPickId: this.nextPickId,
       nextPick: this.nextPick,
+      round: this.round,
     };
   }
 
@@ -303,6 +306,7 @@ class Station {
     this.history.push(id);
     if (this.history.length > LIMITS.historySize) this.history.shift();
     this.byId(id).plays++;
+    if (!this.round.includes(id)) this.round.push(id);
     return true;
   }
 
@@ -324,6 +328,7 @@ class Station {
     this.tracks = this.tracks.filter((t) => t.id !== trackId);
     this.queue = this.queue.filter((id) => id !== trackId);
     this.history = this.history.filter((id) => id !== trackId);
+    this.round = this.round.filter((id) => id !== trackId);
     if (this.playing && this.playing.trackId === trackId) {
       this.playing = null;
       this.startNext(now);
@@ -372,23 +377,29 @@ class Station {
     return { hearts: t.hearts.length, hearted: on };
   }
 
-  // When nobody has queued anything, replay past picks, avoiding recent ones.
-  // Songs people hearted come back a little more often (up to 3x).
-
+  // When nobody has queued anything, replay past picks like a shuffled deck: every song
+  // plays once, in random order, before any song plays again.
   pickRotation() {
-    if (!this.tracks.length) return null;
     const queued = new Set(this.queue);
-    const avoid = new Set(this.history.slice(-Math.min(10, this.tracks.length - 1)));
-    let pool = this.tracks.filter((t) => !queued.has(t.id) && !avoid.has(t.id));
-    if (!pool.length) pool = this.tracks.filter((t) => !queued.has(t.id));
-    if (!pool.length) return null;
-    const weight = (t) => 1 + Math.min((t.hearts || []).length, 10) / 5;
-    let r = this.random() * pool.reduce((sum, t) => sum + weight(t), 0);
-    for (const t of pool) {
-      r -= weight(t);
-      if (r < 0) return t.id;
+    const candidates = this.tracks.filter((t) => !queued.has(t.id));
+    if (!candidates.length) return null;
+    const played = new Set(this.round);
+    let pool = candidates.filter((t) => !played.has(t.id));
+    if (!pool.length) {
+      // Everything has played: start a new round, but not with the songs that just
+      // played, so the end of one round and the start of the next don't sound alike.
+      this.round = [];
+      const n = Math.floor(candidates.length / 2);
+      const recent = new Set(n ? this.history.slice(-n) : []);
+      pool = candidates.filter((t) => !recent.has(t.id));
+      if (!pool.length) pool = candidates;
     }
-    return pool[pool.length - 1].id;
+    return pool[Math.floor(this.random() * pool.length)].id;
+  }
+
+  // How long it takes to play every song once: the longest stretch before a repeat.
+  roundLength() {
+    return this.tracks.reduce((sum, t) => sum + t.duration, 0);
   }
 
   state(now = Date.now(), viewer = null) {

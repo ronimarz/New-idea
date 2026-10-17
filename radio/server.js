@@ -148,6 +148,7 @@ async function handleAdmin(req, res, pathname) {
         .reverse()
         .map(({ id, at, name, location, text, key }) => ({ id, at, name, location, text, author: key })),
       banned: [...banned],
+      roundSeconds: station.roundLength(),
       questions: { ...questions.current(now), list: questions.sets },
       listeners: presence.summary(now).count,
     });
