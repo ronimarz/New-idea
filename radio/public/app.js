@@ -608,8 +608,8 @@ function renderQuestions(info) {
   if (!info) return;
   const same = shownQuestions && shownQuestions.join('\n') === info.questions.join('\n');
   const period = info.rotation === 'month' ? 'month' : 'week';
-  $('q-heading').textContent = info.custom ? 'Answer these three questions' : `This ${period}'s questions`;
-  $('q-when').textContent = info.custom
+  $('q-heading').textContent = info.paused ? 'Answer these three questions' : `This ${period}'s questions`;
+  $('q-when').textContent = info.paused
     ? ''
     : `New questions ${period === 'month' ? 'on the 1st of every month' : 'every Monday'}.`;
   if (same) return;

@@ -73,17 +73,97 @@ function answersEl(answers) {
   return dl;
 }
 
+// ---- Question sets ---------------------------------------------------------------
+
+let editingSet = null; // id of the set being edited, if any
+
+function questionInputs(values, prefix) {
+  return values.map((v, i) => {
+    const input = el('input');
+    input.maxLength = 140;
+    input.required = true;
+    input.value = v;
+    input.setAttribute('aria-label', `${prefix} ${i + 1}`);
+    return input;
+  });
+}
+
+async function setAction(method, path, body) {
+  try {
+    await api(method, path, body);
+    $('q-msg').textContent = '';
+    await load();
+  } catch (err) {
+    $('q-msg').textContent = err.message;
+  }
+}
+
 function renderQuestions() {
   const q = data.questions;
-  $('q-current').replaceChildren(...q.questions.map((text) => el('li', null, text)));
   const period = q.rotation === 'month' ? 'month' : 'week';
-  $('q-status').textContent = q.custom
-    ? `These are your custom questions. They stay until you change them or go back to the rotation.`
-    : `Set ${q.set} of ${q.sets} in the ${period}ly rotation. The next set starts ${when(q.changesAt)}.`;
-  $('q-reset').hidden = !q.custom;
-  if (document.activeElement.closest('#q-form') == null) {
-    q.questions.forEach((text, i) => ($(`q${i + 1}`).value = text));
-  }
+  $('q-status').textContent = q.paused
+    ? `Showing set ${q.set} of ${q.sets}. The rotation is paused, so it stays until you change it.`
+    : `Showing set ${q.set} of ${q.sets}. The next set in the list starts ${when(q.changesAt)}, ` +
+      `then one each ${period}, looping back to the top.`;
+  $('q-paused').checked = q.paused;
+
+  $('q-sets').replaceChildren(
+    ...q.list.map((set, i) => {
+      const li = el('li', set.id === q.setId ? 'q-set showing' : 'q-set');
+      const head = el('div', 'q-set-head');
+      head.append(el('strong', null, `Set ${i + 1}`));
+      if (set.id === q.setId) head.append(el('span', 'status', 'showing now'));
+      li.append(head);
+
+      if (editingSet === set.id) {
+        const form = el('form', 'q-form');
+        const inputs = questionInputs(set.questions, `Set ${i + 1}, question`);
+        const buttons = el('div', 'actions');
+        const saveBtn = el('button', null, 'Save');
+        saveBtn.type = 'submit';
+        buttons.append(saveBtn, button('Cancel', () => {
+          editingSet = null;
+          render();
+        }));
+        form.append(...inputs, buttons);
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          editingSet = null;
+          await setAction('PUT', `/api/admin/question-sets/${set.id}`, { questions: inputs.map((x) => x.value) });
+        });
+        li.append(form);
+        return li;
+      }
+
+      const ol = el('ol', 'q-list-items');
+      ol.append(...set.questions.map((text) => el('li', null, text)));
+      const buttons = el('div', 'actions');
+      buttons.append(
+        button('↑', () => setAction('POST', `/api/admin/question-sets/${set.id}/move`, { by: -1 })),
+        button('↓', () => setAction('POST', `/api/admin/question-sets/${set.id}/move`, { by: 1 })),
+        button('Edit', () => {
+          editingSet = set.id;
+          render();
+        }),
+      );
+      buttons.children[0].disabled = i === 0;
+      buttons.children[0].setAttribute('aria-label', `Move set ${i + 1} up`);
+      buttons.children[1].disabled = i === q.list.length - 1;
+      buttons.children[1].setAttribute('aria-label', `Move set ${i + 1} down`);
+      if (set.id !== q.setId) {
+        buttons.append(button('Use this set now', () => setAction('POST', `/api/admin/question-sets/${set.id}/use`)));
+      }
+      if (q.list.length > 1) {
+        buttons.append(button('Delete', () => {
+          if (confirm(`Delete set ${i + 1}? Songs already answered with it keep their answers.`)) {
+            setAction('DELETE', `/api/admin/question-sets/${set.id}`);
+          }
+        }, 'danger'));
+      }
+      li.append(ol, buttons);
+      return li;
+    })
+  );
 }
 
 function render() {
@@ -190,25 +270,22 @@ $('skip').addEventListener('click', async () => {
   load();
 });
 $('filter').addEventListener('input', () => data && render());
-$('q-form').addEventListener('submit', async (e) => {
+$('q-add').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const questions = [1, 2, 3].map((i) => $(`q${i}`).value);
-  try {
-    await api('PUT', '/api/admin/questions', { questions });
-    $('q-msg').textContent = '';
-    load();
-  } catch (err) {
-    $('q-msg').textContent = err.message;
-  }
+  const questions = [1, 2, 3].map((i) => $(`qa${i}`).value);
+  await setAction('POST', '/api/admin/question-sets', { questions });
+  if (!$('q-msg').textContent) for (const i of [1, 2, 3]) $(`qa${i}`).value = '';
 });
-$('q-reset').addEventListener('click', async () => {
-  await api('DELETE', '/api/admin/questions');
-  load();
-});
+$('q-paused').addEventListener('change', () => setAction('PUT', '/api/admin/rotation', { paused: $('q-paused').checked }));
 
 if (token()) load();
 else showLogin();
 setInterval(() => {
-  // Keep the lists fresh, but not while the admin is typing a search.
-  if (token() && !$('panel').hidden && document.activeElement !== $('filter')) load();
+  // Keep the lists fresh, but not while the admin is typing a search...
+  // ...or while they're editing or adding a question set.
+  const busy =
+    document.activeElement === $('filter') ||
+    editingSet != null ||
+    ($('q-section').contains(document.activeElement) && document.activeElement.tagName === 'INPUT');
+  if (token() && !$('panel').hidden && !busy) load();
 }, 15000);

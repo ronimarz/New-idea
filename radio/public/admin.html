@@ -37,19 +37,19 @@
         <p class="hint">"Ban" blocks that person from posting songs, chat and notes, and removes everything they've posted. People are identified by a code made from their internet address.</p>
       </section>
 
-      <section class="card">
+      <section id="q-section" class="card">
         <h2 class="label">Questions people answer</h2>
-        <ol id="q-current" class="q-current"></ol>
-        <p id="q-status" class="hint"></p>
-        <form id="q-form" class="q-form" autocomplete="off">
-          <p class="hint">Write your own three. They replace the rotation until you go back to it.</p>
-          <input id="q1" maxlength="140" aria-label="Question 1" required>
-          <input id="q2" maxlength="140" aria-label="Question 2" required>
-          <input id="q3" maxlength="140" aria-label="Question 3" required>
-          <div class="actions">
-            <button type="submit">Use these questions</button>
-            <button type="button" id="q-reset" class="secondary" hidden>Go back to the rotation</button>
-          </div>
+        <p id="q-status"></p>
+        <label class="toggle">
+          <input type="checkbox" id="q-paused"> Pause the rotation and keep the set that's showing now
+        </label>
+        <ol id="q-sets" class="q-sets"></ol>
+        <form id="q-add" class="q-form" autocomplete="off">
+          <h3 class="q-add-heading">Add a set</h3>
+          <input id="qa1" maxlength="140" placeholder="First question" aria-label="First question" required>
+          <input id="qa2" maxlength="140" placeholder="Second question" aria-label="Second question" required>
+          <input id="qa3" maxlength="140" placeholder="Third question" aria-label="Third question" required>
+          <div class="actions"><button type="submit">Add to the end of the list</button></div>
           <p id="q-msg" class="form-msg err" role="status"></p>
         </form>
       </section>

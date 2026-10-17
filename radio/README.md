@@ -6,7 +6,7 @@ A single global radio station that anyone can add to, meant to be left on in the
 - **Made to leave on.** The player and the current pick sit up top with the chat beside them, and everything else is below. "Just listen" hides everything but the music and the chat. When a song ends, the next one starts right away, even in a background tab. Returning listeners start playing without clicking, if their browser allows it. The tab title shows what's playing.
 - **English songs and instrumentals, for now.** People say whether a song's lyrics are in English or it's instrumental; anything else is turned away. A title written mostly in another script (Korean, Cyrillic…) gets a warning badge on the admin page so you can check it.
 - **It never goes quiet.** New picks play in the order they were added. When the queue is empty, the station replays past picks at random, skipping anything that played recently.
-- **Three questions make people think.** Everyone who adds a song answers three questions, such as "Why this song?", "What does it mean to you?" and "When did you first hear it?" Each answer needs at least 40 characters. The questions change on their own every week (or month), cycling through 8 built-in sets, and you can write your own on the admin page at any time. Each pick keeps the questions it was answered with.
+- **Three questions make people think.** Everyone who adds a song answers three questions, such as "Why this song?", "What does it mean to you?" and "When did you first hear it?" Each answer needs at least 40 characters. The questions change on their own every week (or month), moving through a list of question sets that you manage on the admin page. The station starts with 8 sets. Each pick keeps the questions it was answered with.
 - **The answers are the DJ.** They show under the player. Listeners can turn on "Read each pick's story aloud," which uses the browser's text-to-speech and turns the music down while it talks.
 - **Hearts, and nothing negative.** Listeners can heart a pick they love, once per song, and take it back. There are no downvotes, rankings or "top songs" lists. On your own pick you see "Your pick" and how many people love it, and who gave the hearts stays private. Hearted songs come back a little more often when the station replays past picks, up to 3 times as often.
 - **Listening together.** A live chat sits beside the station, and it marks which song was playing when people were talking. A line at the top shows how many people are listening and where from.
@@ -40,7 +40,7 @@ Settings, all optional:
 
 Go to `/admin` and sign in with the admin password. From there you can:
 
-- see the current questions and when the next set starts, write your own three (they stay until you change them), or go back to the rotation
+- manage the question sets: add, edit, delete and reorder them, pick which set shows right now, and pause the rotation to keep a set for as long as you like. The page shows which set is on and when the next one starts. Reordering or deleting never makes the current questions jump; the rotation moves on to the next set in the list from wherever it is.
 - see every song with its answers, status (on air, queued, played), plays and hearts, and search them
 - remove a song (if it's on air, the next one starts right away)
 - skip the current song
@@ -71,7 +71,7 @@ People are identified by their internet address, since there are no accounts yet
 ## Files
 
 - `station.js`: the station's rules (queue, rotation, timing, validation). It has no web or file code, so it's easy to test.
-- `questions.js`: the question sets and the weekly or monthly rotation.
+- `questions.js`: the question sets (saved with the station's data), the starter sets, and the weekly or monthly rotation.
 - `community.js`: chat, thank-you notes and who's listening. Like `station.js`, it has no web or file code.
 - `server.js`: a small HTTP server. It serves the pages and the JSON API, checks the admin password and saves everything to `DATA_FILE`.
 - `public/`: the station page (`index.html`, `app.js`) and the admin page (`admin.html`, `admin.js`).

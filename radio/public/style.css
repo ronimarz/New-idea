@@ -392,5 +392,13 @@ fieldset.qs legend { font-weight: 700; padding: 0; margin-bottom: 2px; }
 
 .more-answers summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
 
-.q-current { margin: 0 0 6px; padding-left: 20px; font-weight: 600; }
 .q-form { margin-top: 12px; gap: 8px; }
+
+.q-sets { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 10px; }
+.q-set { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.q-set.showing { border-color: var(--accent); background: var(--quote); }
+.q-set-head { display: flex; align-items: center; }
+.q-list-items { margin: 6px 0 0; padding-left: 20px; }
+.q-set .actions button { padding: 5px 12px; font-size: 0.85rem; margin-top: 8px; }
+.q-set .actions button:disabled { opacity: 0.35; }
+.q-add-heading { margin: 4px 0 0; font-size: 1rem; }

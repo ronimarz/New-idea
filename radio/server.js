@@ -144,21 +144,27 @@ async function handleAdmin(req, res, pathname) {
         .reverse()
         .map(({ id, at, name, location, text, key }) => ({ id, at, name, location, text, author: key })),
       banned: [...banned],
-      questions: questions.current(now),
+      questions: { ...questions.current(now), list: questions.sets },
       listeners: presence.summary(now).count,
     });
   }
-  if (req.method === 'PUT' && pathname === '/api/admin/questions') {
-    const body = await readJson(req);
-    const result = questions.setCustom(body && body.questions, now);
+  // Question sets: add, edit, delete, reorder, use now, and pause the rotation.
+  if (pathname.startsWith('/api/admin/question-sets') || pathname === '/api/admin/rotation') {
+    const body = req.method === 'DELETE' ? {} : await readJson(req);
+    if (!body) return sendJson(res, 400, { error: 'Bad request.' });
+    const id = Number((pathname.match(/^\/api\/admin\/question-sets\/(\d+)/) || [])[1]);
+    const route = `${req.method} ${pathname.replace(/\/\d+/, '/:id')}`;
+    let result;
+    if (route === 'POST /api/admin/question-sets') result = questions.add(body.questions);
+    else if (route === 'PUT /api/admin/question-sets/:id') result = questions.edit(id, body.questions);
+    else if (route === 'DELETE /api/admin/question-sets/:id') result = questions.remove(id, now);
+    else if (route === 'POST /api/admin/question-sets/:id/move') result = questions.move(id, body.by);
+    else if (route === 'POST /api/admin/question-sets/:id/use') result = questions.use(id, now);
+    else if (route === 'PUT /api/admin/rotation') result = questions.setPaused(body.paused, now);
+    else return sendJson(res, 404, { error: 'Not found.' });
     if (result.error) return sendJson(res, 400, result);
     save();
-    return sendJson(res, 200, questions.current(now));
-  }
-  if (req.method === 'DELETE' && pathname === '/api/admin/questions') {
-    questions.clearCustom();
-    save();
-    return sendJson(res, 200, questions.current(now));
+    return sendJson(res, 200, { ok: true });
   }
   if (req.method === 'POST' && pathname === '/api/admin/skip') {
     station.skip(now);
