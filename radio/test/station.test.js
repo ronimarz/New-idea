@@ -127,6 +127,45 @@ test('cleans text and hides who submitted', () => {
   assert.equal('submitter' in np, false);
 });
 
+test('hearts: one per person, can be taken back, never on your own pick', () => {
+  const s = new Station();
+  const { track } = s.add(song('aaaaaaaaaaa'), 'picker', 0);
+  assert.deepEqual(s.heart(track.id, 'fan1'), { hearts: 1, hearted: true });
+  assert.deepEqual(s.heart(track.id, 'fan1'), { hearts: 1, hearted: true }); // no double counting
+  s.heart(track.id, 'fan2');
+  assert.deepEqual(s.heart(track.id, 'fan2', false), { hearts: 1, hearted: false });
+  assert.match(s.heart(track.id, 'picker').error, /your pick/);
+  assert.match(s.heart(999, 'fan1').error, /no longer/);
+
+  const asFan = s.state(0, 'fan1').nowPlaying;
+  assert.equal(asFan.hearts, 1);
+  assert.equal(asFan.hearted, true);
+  assert.equal(asFan.mine, false);
+  const asPicker = s.state(0, 'picker').nowPlaying;
+  assert.equal(asPicker.mine, true);
+  assert.equal(asPicker.hearted, false);
+  assert.equal(JSON.stringify(s.state(0, 'fan1')).includes('fan1'), false); // who hearted stays private
+});
+
+test('hearted songs come back more often in rotation', () => {
+  let seed = 1;
+  const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const s = new Station({}, { random });
+  // Enough songs that rotation has a real choice after skipping the 10 most recent.
+  const ids = [];
+  for (let i = 0; i < 15; i++) {
+    ids.push(s.add(song(String(i).padStart(11, 'x'), 10), `u${i}`, 0).track.id);
+  }
+  for (let i = 0; i < 10; i++) s.heart(ids[0], `fan${i}`);
+  const plays = {};
+  for (let t = 150_000; t < 150_000 + 3000 * 10_000; t += 10_000) {
+    s.tick(t);
+    plays[s.playing.trackId] = (plays[s.playing.trackId] || 0) + 1;
+  }
+  const others = ids.slice(1).map((id) => plays[id]);
+  assert.ok(plays[ids[0]] > Math.max(...others), JSON.stringify(plays));
+});
+
 test('state survives a save and reload', () => {
   const s = new Station();
   s.add(song('aaaaaaaaaaa'), 'u1', 0);

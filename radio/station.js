@@ -50,10 +50,25 @@ function cleanText(value, max) {
   return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
 
-function publicTrack(t) {
+// What listeners may see. `viewer` is the hashed visitor key, used only to say whether
+// this is their own pick and whether they've hearted it. It is never sent out itself.
+function publicTrack(t, viewer) {
   if (!t) return null;
   const { id, videoId, title, duration, name, location, blurb, addedAt } = t;
-  return { id, videoId, title, duration, name, location: location || '', blurb, addedAt };
+  const hearts = t.hearts || [];
+  return {
+    id,
+    videoId,
+    title,
+    duration,
+    name,
+    location: location || '',
+    blurb,
+    addedAt,
+    hearts: hearts.length,
+    hearted: viewer != null && hearts.includes(viewer),
+    mine: viewer != null && t.submitter === viewer,
+  };
 }
 
 class Station {
@@ -114,7 +129,7 @@ class Station {
     if (pending >= LIMITS.maxQueuedPerSubmitter) {
       return { error: `You already have ${pending} songs waiting. Let those play first.` };
     }
-    const track = { id: this.nextId++, ...value, submitter, addedAt: now, plays: 0 };
+    const track = { id: this.nextId++, ...value, submitter, addedAt: now, plays: 0, hearts: [] };
     this.tracks.push(track);
     this.queue.push(track.id);
     this.tick(now);
@@ -146,7 +161,21 @@ class Station {
     return true;
   }
 
+  // Hearts only ever add: there's no way to count against a song.
+  heart(trackId, viewer, on = true) {
+    const t = this.byId(trackId);
+    if (!t) return { error: 'That song is no longer on the station.' };
+    if (t.submitter === viewer) return { error: "That's your pick." };
+    t.hearts = t.hearts || [];
+    const has = t.hearts.includes(viewer);
+    if (on && !has) t.hearts.push(viewer);
+    if (!on && has) t.hearts.splice(t.hearts.indexOf(viewer), 1);
+    return { hearts: t.hearts.length, hearted: on };
+  }
+
   // When nobody has queued anything, replay past picks, avoiding recent ones.
+  // Songs people hearted come back a little more often (up to 3x).
+
   pickRotation() {
     if (!this.tracks.length) return null;
     const queued = new Set(this.queue);
@@ -154,20 +183,26 @@ class Station {
     let pool = this.tracks.filter((t) => !queued.has(t.id) && !avoid.has(t.id));
     if (!pool.length) pool = this.tracks.filter((t) => !queued.has(t.id));
     if (!pool.length) return null;
-    return pool[Math.floor(this.random() * pool.length)].id;
+    const weight = (t) => 1 + Math.min((t.hearts || []).length, 10) / 5;
+    let r = this.random() * pool.reduce((sum, t) => sum + weight(t), 0);
+    for (const t of pool) {
+      r -= weight(t);
+      if (r < 0) return t.id;
+    }
+    return pool[pool.length - 1].id;
   }
 
-  state(now = Date.now()) {
+  state(now = Date.now(), viewer = null) {
     const current = this.playing && this.byId(this.playing.trackId);
     const recentIds = this.history.slice(0, current ? -1 : undefined).slice(-10).reverse();
     return {
       serverTime: now,
       nowPlaying: current
-        ? { ...publicTrack(current), startedAt: this.playing.startedAt }
+        ? { ...publicTrack(current, viewer), startedAt: this.playing.startedAt }
         : null,
-      upNext: this.queue.slice(0, 20).map((id) => publicTrack(this.byId(id))),
+      upNext: this.queue.slice(0, 20).map((id) => publicTrack(this.byId(id), viewer)),
       queueLength: this.queue.length,
-      recent: recentIds.map((id) => publicTrack(this.byId(id))),
+      recent: recentIds.map((id) => publicTrack(this.byId(id), viewer)),
       librarySize: this.tracks.length,
     };
   }

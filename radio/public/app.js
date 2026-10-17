@@ -73,6 +73,47 @@ function pickedBy(t) {
   return t.location ? `${t.name} in ${t.location}` : t.name;
 }
 
+// Hearts are the only reaction. There is deliberately no way to count against a song.
+function heartControl(t) {
+  if (t.mine) {
+    const span = document.createElement('span');
+    span.className = 'mine';
+    span.textContent = t.hearts
+      ? `Your pick · ♥ ${t.hearts} ${t.hearts === 1 ? 'person loves' : 'people love'} it`
+      : 'Your pick';
+    return span;
+  }
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'heart';
+  btn.setAttribute('aria-pressed', String(t.hearted));
+  btn.setAttribute('aria-label', t.hearted ? 'Remove your heart' : 'Love this pick');
+  btn.title = t.hearted ? 'You love this pick' : 'Love this pick';
+  btn.textContent = t.hearts ? `♥ ${t.hearts}` : '♥';
+  btn.addEventListener('click', () => toggleHeart(t));
+  return btn;
+}
+
+async function toggleHeart(t) {
+  const on = !t.hearted;
+  const apply = (hearted, hearts) => {
+    for (const x of [state.nowPlaying, ...state.upNext, ...state.recent]) {
+      if (x && x.id === t.id) Object.assign(x, { hearted, hearts });
+    }
+    render();
+  };
+  const before = { hearted: t.hearted, hearts: t.hearts };
+  apply(on, t.hearts + (on ? 1 : -1));
+  try {
+    const res = await fetch(`/api/tracks/${t.id}/heart`, { method: on ? 'PUT' : 'DELETE' });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error);
+    apply(body.hearted, body.hearts);
+  } catch {
+    apply(before.hearted, before.hearts);
+  }
+}
+
 function trackItem(t) {
   const li = document.createElement('li');
   const title = document.createElement('div');
@@ -84,7 +125,7 @@ function trackItem(t) {
   const blurb = document.createElement('div');
   blurb.className = 't-blurb';
   blurb.textContent = `“${t.blurb}”`;
-  li.append(title, meta, blurb);
+  li.append(title, meta, blurb, heartControl(t));
   return li;
 }
 
@@ -98,6 +139,7 @@ function render() {
     $('np-name').textContent = np.name;
     $('np-from').textContent = np.location ? ` in ${np.location}` : '';
     $('np-blurb').textContent = np.blurb;
+    $('np-heart').replaceChildren(heartControl(np));
     $('np-total').textContent = fmt(np.duration);
     document.title = `${np.title} · Open Air Radio`;
   } else {

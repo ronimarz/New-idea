@@ -214,3 +214,27 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .t-title { font-weight: 700; }
 .t-meta { font-size: 0.85rem; color: var(--muted); }
 .t-blurb { margin-top: 4px; font-style: italic; }
+
+.heart {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  padding: 4px 14px;
+  font-size: 0.95rem;
+  margin-top: 6px;
+  transition: color 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.heart:hover { color: var(--accent); border-color: var(--accent); }
+.heart:active { transform: scale(0.94); }
+.heart[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--quote); }
+
+.mine {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.np-heart { margin: -4px 0 14px; }

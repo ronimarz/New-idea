@@ -5,6 +5,7 @@ A single global radio station that anyone can add to. You paste a YouTube link, 
 - **Everyone hears the same thing.** The server keeps one schedule, and every listener's player jumps to the same spot in the current song.
 - **It never goes quiet.** New picks play in the order they were added. When the queue is empty, the station replays past picks at random, skipping anything that played recently.
 - **The blurb is the DJ.** It shows under the player. Listeners can turn on "Read the blurbs aloud," which uses the browser's text-to-speech and turns the music down while it talks.
+- **Hearts, and nothing negative.** Listeners can heart a pick they love, once per song, and take it back. There are no downvotes, rankings or "top songs" lists. On your own pick you see "Your pick" and how many people love it, and who gave the hearts stays private. Hearted songs come back a little more often when the station replays past picks, up to 3 times as often.
 - **Any genre, any YouTube video** that allows embedding, up to 15 minutes long.
 
 Playback uses YouTube's embedded player, so YouTube handles the music rights. The station never stores or streams audio itself.
@@ -46,6 +47,6 @@ There's no moderation queue or way to remove a song yet. Before you open it up p
 ## Files
 
 - `station.js`: the station's rules (queue, rotation, timing, validation). It has no web or file code, so it's easy to test.
-- `server.js`: a small HTTP server. It serves the page, has `GET /api/state` and `POST /api/tracks`, and saves to `DATA_FILE`.
+- `server.js`: a small HTTP server. It serves the page, has `GET /api/state`, `POST /api/tracks` and `PUT`/`DELETE /api/tracks/:id/heart`, and saves to `DATA_FILE`.
 - `public/`: the web page.
 - `test/`: tests for `station.js`.

@@ -73,7 +73,7 @@ async function handle(req, res) {
 
   if (req.method === 'GET' && pathname === '/api/state') {
     station.tick();
-    return sendJson(res, 200, station.state());
+    return sendJson(res, 200, station.state(Date.now(), submitterKey(req)));
   }
 
   if (req.method === 'POST' && pathname === '/api/tracks') {
@@ -93,6 +93,14 @@ async function handle(req, res) {
     lastSubmit.set(key, Date.now());
     save();
     return sendJson(res, 201, { id: track.id, position: station.queue.indexOf(track.id) + 1 });
+  }
+
+  const heartMatch = pathname.match(/^\/api\/tracks\/(\d+)\/heart$/);
+  if (heartMatch && (req.method === 'PUT' || req.method === 'DELETE')) {
+    const result = station.heart(Number(heartMatch[1]), submitterKey(req), req.method === 'PUT');
+    if (result.error) return sendJson(res, 400, result);
+    save();
+    return sendJson(res, 200, result);
   }
 
   const file = req.method === 'GET' && STATIC[pathname];
