@@ -1,0 +1,216 @@
+:root {
+  --bg: #f6f3ee;
+  --card: #ffffff;
+  --text: #1f1b16;
+  --muted: #6b645b;
+  --accent: #e0472b;
+  --line: #e6e0d6;
+  --quote: #faf6ef;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15130f;
+    --card: #1f1c17;
+    --text: #f1ece4;
+    --muted: #a39b8f;
+    --accent: #ff6a4d;
+    --line: #2f2a23;
+    --quote: #26221c;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.top {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 28px 16px 8px;
+}
+
+.brand {
+  font-weight: 800;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.35; }
+}
+
+.tagline { margin: 4px 0 0; color: var(--muted); }
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 16px 48px;
+  display: grid;
+  gap: 16px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.label {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.count { font-weight: 400; }
+
+.player-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.player-wrap iframe,
+.preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.player-wrap iframe { pointer-events: none; }
+
+.tune-in {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: max-content;
+  height: max-content;
+  font-size: 1.2rem;
+  padding: 14px 28px;
+}
+
+.player-msg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+}
+
+.empty { color: var(--muted); margin-bottom: 12px; }
+
+.np-title { margin: 0; font-size: 1.3rem; }
+.np-by { margin: 2px 0 10px; color: var(--muted); }
+
+.blurb {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: var(--quote);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
+.progress {
+  height: 4px;
+  background: var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#np-bar { height: 100%; width: 0; background: var(--accent); transition: width 0.5s linear; }
+
+.times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+form { display: grid; gap: 12px; }
+
+form label { display: grid; gap: 4px; font-weight: 600; }
+
+input:not([type="checkbox"]),
+textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+}
+
+textarea { resize: vertical; }
+
+.preview {
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.hint { font-size: 0.85rem; font-weight: 400; color: var(--muted); margin: 0; }
+
+button {
+  font: inherit;
+  font-weight: 700;
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.form-msg { margin: 0; min-height: 1.5em; }
+.form-msg.ok { color: #2e8b57; }
+.form-msg.err { color: var(--accent); }
+
+.tracks { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.tracks li { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.tracks li:last-child { border-bottom: 0; padding-bottom: 0; }
+.t-title { font-weight: 700; }
+.t-meta { font-size: 0.85rem; color: var(--muted); }
+.t-blurb { margin-top: 4px; font-style: italic; }

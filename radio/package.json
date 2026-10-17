@@ -1,0 +1,14 @@
+{
+  "name": "open-air-radio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A global community radio station where anyone can add a song and say why.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
