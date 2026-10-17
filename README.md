@@ -1,5 +1,7 @@
 # avjobs: find jobs with AV duties
 
+> Also in this repo: **[gapfinder](GAPFINDER.md)**, which finds things people keep asking for online that nobody offers well yet.
+
 `avjobs` searches job boards and company career pages, then reads every job description. It keeps only the postings whose duties involve **AV (audio-visual) work** and ranks them by how much of the job is AV.
 
 You get:

@@ -1,0 +1,40 @@
+# Copy to gapfinder.toml and edit. None of these sources need an account or key.
+
+sources = ["reddit", "hackernews", "stackexchange"]
+
+# Look at posts from this many days back.
+days = 30
+
+# Only keep posts that mention one of these words. Leave empty to see everything.
+# e.g. ["music", "band", "concert"]   or   ["invoice", "customers", "booking"]
+focus_words = []
+
+# Hide weak matches. Raise it to see only strong, repeated demand.
+min_score = 2
+
+[reddit]
+# Communities searched for posts like "is there an app...", "I'd pay for...".
+# Add any subreddit (the part after r/). Each one adds about 2 seconds to the run.
+subreddits = [
+  "smallbusiness", "Entrepreneur", "freelance", "productivity", "personalfinance",
+  "musicians", "WeAreTheMusicMakers", "Teachers", "realtors", "Landlord", "HomeImprovement",
+]
+# Communities where EVERY post is a request, so all recent posts are read.
+request_subreddits = ["SomebodyMakeThis", "AppIdeas", "Lightbulb"]
+
+[hackernews]
+# Uses the built-in search phrases. Nothing to set.
+
+[stackexchange]
+# Q&A sites where people ask for software. softwarerecs is the big one.
+sites = ["softwarerecs", "webapps"]
+
+# Optional: email yourself the report after each run.
+# For Gmail, turn on 2-Step Verification, then create an "app password" at
+# https://myaccount.google.com/apppasswords and paste it below (not your normal password).
+[email]
+to = ""
+username = ""
+password = ""
+host = "smtp.gmail.com"
+port = 465
