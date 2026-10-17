@@ -168,13 +168,13 @@ function noteControl(t) {
   if (state.thanked.includes(t.id)) {
     const span = document.createElement('span');
     span.className = 'sent';
-    span.textContent = '✉ Thanks sent';
+    span.textContent = '✉ Sent';
     return span;
   }
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'heart';
-  btn.textContent = '✉ Say thanks';
+  btn.textContent = '✉ Thank';
   btn.title = `Send ${t.name} a private note`;
   btn.addEventListener('click', () => openNote(t));
   return btn;
@@ -198,33 +198,28 @@ function answerList(answers) {
   });
 }
 
-// In the lists: the first answer, with the rest a click away.
-function answersPreview(t) {
-  if (!t.answers.length) return [];
-  const first = document.createElement('div');
-  first.className = 't-blurb';
-  first.textContent = `“${t.answers[0].answer}”`;
-  if (t.answers.length === 1) return [first];
-  const more = document.createElement('details');
-  more.className = 'more-answers';
-  const summary = document.createElement('summary');
-  summary.textContent = `More from ${t.name}`;
-  const dl = document.createElement('dl');
-  dl.className = 'answers small';
-  dl.append(...answerList(t.answers));
-  more.append(summary, dl);
-  return [first, more];
-}
+// In the lists: the song and who picked it; their answers open on a click.
+// The lists are redrawn on every update, so remember which ones are open.
+const openItems = new Set();
 
-function trackItem(t) {
+function trackItem(t, list) {
   const li = document.createElement('li');
-  const title = document.createElement('div');
-  title.className = 't-title';
+  const details = document.createElement('details');
+  const key = `${list}:${t.id}`;
+  details.open = openItems.has(key);
+  details.addEventListener('toggle', () => {
+    if (details.open) openItems.add(key);
+    else openItems.delete(key);
+  });
+  const summary = document.createElement('summary');
+  const title = document.createElement('strong');
   title.textContent = t.title;
-  const meta = document.createElement('div');
-  meta.className = 't-meta';
-  meta.textContent = `${fmt(t.duration)} · picked by ${pickedBy(t)}${langTag(t)}`;
-  li.append(title, meta, ...answersPreview(t), actions(t));
+  summary.append(title, ` · ${pickedBy(t)}`);
+  const dl = document.createElement('dl');
+  dl.className = 'answers';
+  dl.append(...answerList(t.answers));
+  details.append(summary, dl, actions(t));
+  li.append(details);
   return li;
 }
 
@@ -240,7 +235,7 @@ function render() {
     $('np-lang').textContent = langTag(np);
     const nx = state.next;
     $('np-next').textContent = nx
-      ? `Next: ${nx.title}, picked by ${pickedBy(nx)}${nx.replay ? ' (from earlier)' : ''}`
+      ? `Next: ${nx.title}`
       : '';
     $('np-answers').replaceChildren(...answerList(np.answers));
     $('np-heart').replaceChildren(...actions(np).childNodes);
@@ -250,25 +245,14 @@ function render() {
     document.title = 'Open Air Radio';
   }
 
-  $('up-next').replaceChildren(...state.upNext.map(trackItem));
+  $('up-next').replaceChildren(...state.upNext.map((t) => trackItem(t, 'next')));
   $('next-empty').hidden = state.upNext.length > 0 || !np;
   $('queue-count').textContent = state.queueLength ? `(${state.queueLength})` : '';
-  $('recent').replaceChildren(...state.recent.map(trackItem));
+  $('recent').replaceChildren(...state.recent.map((t) => trackItem(t, 'recent')));
   $('recent-empty').hidden = state.recent.length > 0;
   renderLanguages();
   renderQuestions(state.questions);
-  renderListeners();
   renderInbox();
-}
-
-function renderListeners() {
-  const { count, places, morePlaces } = state.listeners;
-  let text = `${count} ${count === 1 ? 'person' : 'people'} listening`;
-  if (places.length) {
-    text += ` from ${places.join(', ')}`;
-    if (morePlaces) text += ` and ${morePlaces} more ${morePlaces === 1 ? 'place' : 'places'}`;
-  }
-  $('listening').textContent = text;
 }
 
 // ---- Thank-you notes ---------------------------------------------------------
@@ -316,9 +300,8 @@ let noteTrack = null;
 function openNote(t) {
   noteTrack = t;
   const who = me();
-  $('note-heading').textContent = `Say thanks to ${t.name}`;
-  $('note-song').textContent = `For picking “${t.title}”`;
-  $('note-private').textContent = `Only ${t.name} will see this, the next time they visit.`;
+  $('note-heading').textContent = `Thank ${t.name} for “${t.title}”`;
+  $('note-private').textContent = `Only ${t.name} will see this.`;
   $('n-text').value = '';
   $('n-name').value = who.name;
   $('n-location').value = who.location;
@@ -446,7 +429,6 @@ function syncPlayer() {
   if (key !== loadedKey) {
     loadedKey = key;
     $('player-msg').hidden = true;
-    announce(np);
     player.loadVideoById({ videoId: np.videoId, startSeconds: Math.max(0, elapsedSec()) });
     // Browsers may block sound until the listener clicks once. If it hasn't started
     // after a few seconds, show the Tune in button.
@@ -544,35 +526,6 @@ function tuneIn() {
   }
 }
 
-// ---- "Just listen" mode ---------------------------------------------------------
-
-function setLean(on) {
-  document.body.classList.toggle('lean', on);
-  $('lean-toggle').setAttribute('aria-pressed', String(on));
-  $('lean-toggle').textContent = on ? 'Show everything' : 'Just listen';
-  remember('lean', on ? '1' : '0');
-}
-
-// ---- DJ voice ----------------------------------------------------------------
-
-function announce(track) {
-  if (!$('dj-voice').checked || !('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(
-    `Now playing ${track.title}, picked by ${pickedBy(track)}. ` +
-      track.answers.map((a) => `${a.question} ${a.answer}`).join(' ')
-  );
-  const restore = () => {
-    if (playerReady) player.setVolume(100);
-  };
-  u.onstart = () => {
-    if (playerReady) player.setVolume(20);
-  };
-  u.onend = restore;
-  u.onerror = restore;
-  speechSynthesis.speak(u);
-}
-
 // ---- Add a song --------------------------------------------------------------
 
 let preview = null;
@@ -608,10 +561,7 @@ function renderQuestions(info) {
   if (!info) return;
   const same = shownQuestions && shownQuestions.join('\n') === info.questions.join('\n');
   const period = info.rotation === 'month' ? 'month' : 'week';
-  $('q-heading').textContent = info.paused ? 'Answer these three questions' : `This ${period}'s questions`;
-  $('q-when').textContent = info.paused
-    ? ''
-    : `New questions ${period === 'month' ? 'on the 1st of every month' : 'every Monday'}.`;
+  $('q-heading').textContent = info.paused ? 'Three questions' : `This ${period}'s questions`;
   if (same) return;
   // Keep whatever someone already typed if the questions change under them.
   const typed = answerFields().map((f) => f.value);
@@ -661,7 +611,6 @@ function renderLanguages() {
       return label;
     })
   );
-  $('lang-note').textContent = state.languageRule;
 }
 
 function chosenLanguage() {
@@ -815,13 +764,6 @@ $('f-url').addEventListener('input', () => {
 $('f-location').addEventListener('input', updateSubmit);
 $('add-form').addEventListener('submit', onSubmit);
 $('tune-in').addEventListener('click', tuneIn);
-$('lean-toggle').addEventListener('click', () => setLean(!document.body.classList.contains('lean')));
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && document.body.classList.contains('lean') && !$('note-dialog').open) {
-    setLean(false);
-  }
-});
-setLean(remembered('lean') === '1');
 $('chat-form').addEventListener('submit', onChatSubmit);
 $('note-form').addEventListener('submit', onNoteSubmit);
 $('note-cancel').addEventListener('click', () => $('note-dialog').close());
