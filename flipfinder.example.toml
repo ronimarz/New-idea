@@ -1,0 +1,92 @@
+# Copy to flipfinder.toml and edit.
+
+# Look up what each item really sells for (recent eBay SOLD listings) on every run.
+# The `resale` numbers below are only used if that lookup fails.
+use_ebay_prices = true
+
+# Skip any listing whose title contains one of these (on top of the built-in
+# list: broken, for parts, as is, locked, box only, wanted, ...).
+exclude = []
+
+[craigslist]
+city = "chicago"          # the part before .craigslist.org, e.g. "sfbay", "dallas", "newyork"
+zip = ""                  # optional: only show listings near this ZIP code
+miles = 25                # ...within this many miles of it
+owner_only = true         # skip dealers, who rarely underprice
+
+# How you'll resell. Defaults assume a local cash sale (Facebook Marketplace,
+# Craigslist, OfferUp): no fees, no shipping. If you sell on eBay instead, use
+#   fee_percent = 13.6, fee_fixed = 0.40, and shipping = what it costs to ship.
+[selling]
+fee_percent = 0
+fee_fixed = 0
+shipping = 0
+min_profit = 40           # only show deals that make at least this much
+
+# ---------------------------------------------------------------- watchlist
+# Good flips are popular, brand-name, easy to test, and sell fast locally.
+# Each item:
+#   name          what you call it
+#   search        what to type into the search box (defaults to name)
+#   resale        backup price if the eBay lookup fails (rough guesses, Oct 2026)
+#   must_include  listing title must contain ALL of these
+#   exclude       skip listings with ANY of these (accessories, knock-offs)
+#   min_price     ignore listings cheaper than this (default: 20% of resale),
+#                 which filters out batteries, parts and other accessories
+
+[[items]]
+name = "Dyson V10 cordless vacuum"
+search = "dyson v10"
+resale = 130
+exclude = ["battery only", "charger only", "attachments only", "head only", "replacement", "filter"]
+min_price = 50
+
+[[items]]
+name = "KitchenAid stand mixer"
+search = "kitchenaid stand mixer"
+resale = 170
+exclude = ["attachment only", "attachments only", "bowl only", "replacement", "cover", "pasta maker", "grinder"]
+min_price = 60
+
+[[items]]
+name = "Herman Miller Aeron chair"
+search = "herman miller aeron"
+resale = 400
+must_include = ["aeron"]
+exclude = ["aeron style", "aeron-style", "like aeron", "replica", "inspired", "arm pads", "cylinder", "parts"]
+
+[[items]]
+name = "Steelcase Leap chair"
+search = "steelcase leap"
+resale = 300
+must_include = ["leap"]
+exclude = ["leap style", "leap-style", "like leap", "parts"]
+
+[[items]]
+name = "Nintendo Switch OLED"
+search = "nintendo switch oled"
+resale = 220
+must_include = ["oled"]
+exclude = ["game only", "games only", "dock only", "screen protector", "controller only", "joy-con only", "skin", "case only"]
+min_price = 90
+
+[[items]]
+name = "PlayStation 5 console"
+search = "ps5 console"
+resale = 330
+exclude = ["controller only", "game only", "games only", "faceplate", "faceplates", "cover", "stand only", "headset", "portal"]
+min_price = 150
+
+[[items]]
+name = "Vitamix blender"
+search = "vitamix"
+resale = 180
+exclude = ["container only", "pitcher only", "lid", "tamper", "blade", "replacement"]
+min_price = 60
+
+[[items]]
+name = "Milwaukee M18 FUEL impact driver"
+search = "milwaukee m18 fuel impact"
+resale = 110
+must_include = ["fuel"]
+exclude = ["battery only", "batteries only", "charger only", "bits"]
