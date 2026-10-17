@@ -4,13 +4,17 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { Station } = require('./station');
+const { Station, LANGUAGES, languageRule } = require('./station');
 const { Chat, Notes, Presence } = require('./community');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'station.json');
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const SUBMIT_COOLDOWN_MS = 30 * 1000;
+const STATION_LANGUAGES = (process.env.STATION_LANGUAGES || 'english,instrumental')
+  .split(',')
+  .map((l) => l.trim())
+  .filter((l) => LANGUAGES[l]);
 
 // Without ADMIN_TOKEN set, a fresh one is made at each start and printed below.
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || crypto.randomBytes(18).toString('base64url');
@@ -25,7 +29,7 @@ function load() {
   // Files from before chat existed held only the station.
   if (data.tracks) data = { station: data };
   return {
-    station: new Station(data.station),
+    station: new Station(data.station, { languages: STATION_LANGUAGES }),
     chat: new Chat(data.chat),
     notes: new Notes(data.notes),
     banned: new Set(data.banned || []),
@@ -124,6 +128,8 @@ async function handleAdmin(req, res, pathname) {
           name: t.name,
           location: t.location || '',
           blurb: t.blurb,
+          language: t.language || 'english',
+          flag: t.flag || '',
           addedAt: t.addedAt,
           plays: t.plays,
           hearts: (t.hearts || []).length,
@@ -189,6 +195,8 @@ async function handle(req, res) {
     presence.ping(key, url.searchParams.get('from'), now);
     return sendJson(res, 200, {
       ...station.state(now, key),
+      languages: STATION_LANGUAGES.map((id) => ({ id, label: LANGUAGES[id] })),
+      languageRule: languageRule(STATION_LANGUAGES),
       listeners: presence.summary(now),
       inbox: notes.inbox(key),
       thanked: notes.sentFor(key),

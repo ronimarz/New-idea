@@ -8,95 +8,113 @@
 </head>
 <body>
   <header class="top">
-    <div class="brand"><span class="dot" aria-hidden="true"></span> Open Air Radio</div>
-    <p class="tagline">One station. Anyone can be the DJ.</p>
+    <div class="top-row">
+      <div class="brand"><span class="dot" aria-hidden="true"></span> Open Air Radio</div>
+      <button id="lean-toggle" type="button" class="secondary small" aria-pressed="false"
+        title="Hide everything but the music and the chat">Just listen</button>
+    </div>
+    <p class="tagline">Music picked by people, for people. Leave it on.</p>
     <p id="listening" class="listening" aria-live="polite"></p>
   </header>
 
-  <main>
+  <main class="layout">
     <section id="inbox" class="card inbox" aria-labelledby="inbox-heading" hidden>
       <h2 id="inbox-heading" class="label">Notes for you <span id="inbox-new" class="new-badge"></span></h2>
       <p class="hint">People who loved your picks wrote to you. Only you can see these.</p>
       <ol id="inbox-list" class="notes"></ol>
     </section>
 
-    <section class="onair card" aria-labelledby="np-heading">
-      <h2 id="np-heading" class="label">Now playing</h2>
-      <div class="player-wrap">
-        <div id="player"></div>
-        <button id="tune-in" class="tune-in" hidden>▶ Tune in</button>
-        <p id="player-msg" class="player-msg" hidden></p>
-      </div>
-      <div id="np-empty" class="empty" hidden>
-        The station is quiet. Add the first song below and it starts playing for everyone.
-      </div>
-      <div id="np-info" hidden>
-        <h3 id="np-title" class="np-title"></h3>
-        <p class="np-by">picked by <strong id="np-name"></strong><span id="np-from"></span></p>
-        <blockquote id="np-blurb" class="blurb"></blockquote>
-        <div id="np-heart" class="actions np-heart"></div>
-        <div class="progress" aria-hidden="true"><div id="np-bar"></div></div>
-        <div class="times"><span id="np-elapsed">0:00</span><span id="np-total">0:00</span></div>
-      </div>
-      <label class="toggle">
-        <input type="checkbox" id="dj-voice"> Read the blurbs aloud between songs
-      </label>
-    </section>
-
-    <section class="card" aria-labelledby="chat-heading">
-      <h2 id="chat-heading" class="label">Listening together</h2>
-      <p class="hint">Be kind. Talk about the music, say hi, tell people where you're tuning in from.</p>
-      <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
-      <p id="chat-empty" class="hint">No one has said anything yet. Say hello!</p>
-      <form id="chat-form" class="chat-form" autocomplete="off">
-        <div class="chat-me">
-          <input id="c-name" maxlength="40" placeholder="Your name" aria-label="Your name">
-          <input id="c-location" maxlength="60" placeholder="Where you are" aria-label="Where you are">
+    <div class="stage">
+      <section class="onair card" aria-labelledby="np-heading">
+        <h2 id="np-heading" class="label">Now playing</h2>
+        <div class="player-wrap">
+          <div id="player"></div>
+          <button id="tune-in" class="tune-in" hidden>▶ Tune in</button>
+          <p id="player-msg" class="player-msg" hidden></p>
         </div>
-        <div class="chat-send">
-          <input id="c-text" maxlength="300" placeholder="Say something…" aria-label="Message" required>
-          <button type="submit">Send</button>
+        <div id="np-empty" class="empty" hidden>
+          The station is quiet. Add the first song below and it starts playing for everyone.
         </div>
-        <p id="chat-msg" class="form-msg err" role="status"></p>
-      </form>
-    </section>
+        <div id="np-info" hidden>
+          <h3 id="np-title" class="np-title"></h3>
+          <p class="np-by">picked by <strong id="np-name"></strong><span id="np-from"></span><span id="np-lang"></span></p>
+          <blockquote id="np-blurb" class="blurb"></blockquote>
+          <div id="np-heart" class="actions np-heart"></div>
+          <div class="progress" aria-hidden="true"><div id="np-bar"></div></div>
+          <div class="times"><span id="np-elapsed">0:00</span><span id="np-total">0:00</span></div>
+          <p id="np-next" class="hint np-next"></p>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="dj-voice"> Read each pick's story aloud before it plays
+        </label>
+      </section>
 
-    <section class="card" aria-labelledby="add-heading">
-      <h2 id="add-heading" class="label">Add a song</h2>
-      <form id="add-form" autocomplete="off">
-        <label>YouTube link
-          <input id="f-url" type="url" placeholder="https://www.youtube.com/watch?v=…" required>
-        </label>
-        <div id="preview-wrap" class="preview" hidden><div id="preview"></div></div>
-        <p id="preview-status" class="hint"></p>
-        <label>Why should people hear this?
-          <span class="hint">What does it mean to you? Where were you when you first heard it? What should people listen for?</span>
-          <textarea id="f-blurb" minlength="100" maxlength="280" rows="4" required
-            placeholder="The first time I heard this I was…"></textarea>
-          <span id="blurb-count" class="hint"></span>
-        </label>
-        <label>Where are you listening from?
-          <input id="f-location" maxlength="60" required placeholder="City, country">
-        </label>
-        <label>Your name <span class="hint">(optional)</span>
-          <input id="f-name" maxlength="40" placeholder="Anonymous">
-        </label>
-        <button id="f-submit" type="submit" disabled>Add to the queue</button>
-        <p id="form-msg" class="form-msg" role="status"></p>
-      </form>
-    </section>
+      <section class="card chat-card" aria-labelledby="chat-heading">
+        <div class="chat-inner">
+        <h2 id="chat-heading" class="label">Listening together</h2>
+        <p class="hint">Be kind. Talk about the music, say hi, tell people where you're tuning in from.</p>
+        <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+        <p id="chat-empty" class="hint">No one has said anything yet. Say hello!</p>
+        <form id="chat-form" class="chat-form" autocomplete="off">
+          <div class="chat-me">
+            <input id="c-name" maxlength="40" placeholder="Your name" aria-label="Your name">
+            <input id="c-location" maxlength="60" placeholder="Where you are" aria-label="Where you are">
+          </div>
+          <div class="chat-send">
+            <input id="c-text" maxlength="300" placeholder="Say something…" aria-label="Message" required>
+            <button type="submit">Send</button>
+          </div>
+          <p id="chat-msg" class="form-msg err" role="status"></p>
+        </form>
+        </div>
+      </section>
+    </div>
 
-    <section class="card" aria-labelledby="next-heading">
-      <h2 id="next-heading" class="label">Up next <span id="queue-count" class="count"></span></h2>
-      <ol id="up-next" class="tracks"></ol>
-      <p id="next-empty" class="hint">Nothing queued, so the station is replaying past picks.</p>
-    </section>
+    <div class="more">
+      <section class="card" aria-labelledby="add-heading">
+        <h2 id="add-heading" class="label">Add a song</h2>
+        <form id="add-form" autocomplete="off">
+          <label>YouTube link
+            <input id="f-url" type="url" placeholder="https://www.youtube.com/watch?v=…" required>
+          </label>
+          <div id="preview-wrap" class="preview" hidden><div id="preview"></div></div>
+          <p id="preview-status" class="hint"></p>
+          <fieldset class="langs">
+            <legend>What are the lyrics in?</legend>
+            <div id="f-langs" class="lang-options"></div>
+            <span id="lang-note" class="hint"></span>
+          </fieldset>
+          <label>Why should people hear this?
+            <span class="hint">What does it mean to you? Where were you when you first heard it? What should people listen for?</span>
+            <textarea id="f-blurb" minlength="100" maxlength="280" rows="4" required
+              placeholder="The first time I heard this I was…"></textarea>
+            <span id="blurb-count" class="hint"></span>
+          </label>
+          <label>Where are you listening from?
+            <input id="f-location" maxlength="60" required placeholder="City, country">
+          </label>
+          <label>Your name <span class="hint">(optional)</span>
+            <input id="f-name" maxlength="40" placeholder="Anonymous">
+          </label>
+          <button id="f-submit" type="submit" disabled>Add to the queue</button>
+          <p id="form-msg" class="form-msg" role="status"></p>
+        </form>
+      </section>
 
-    <section class="card" aria-labelledby="recent-heading">
-      <h2 id="recent-heading" class="label">Recently played</h2>
-      <ol id="recent" class="tracks"></ol>
-      <p id="recent-empty" class="hint">Nothing yet.</p>
-    </section>
+      <div class="side">
+        <section class="card" aria-labelledby="next-heading">
+          <h2 id="next-heading" class="label">Up next <span id="queue-count" class="count"></span></h2>
+          <ol id="up-next" class="tracks"></ol>
+          <p id="next-empty" class="hint">Nothing new queued, so the station is replaying past picks.</p>
+        </section>
+
+        <section class="card" aria-labelledby="recent-heading">
+          <h2 id="recent-heading" class="label">Recently played</h2>
+          <ol id="recent" class="tracks"></ol>
+          <p id="recent-empty" class="hint">Nothing yet.</p>
+        </section>
+      </div>
+    </div>
   </main>
 
   <dialog id="note-dialog" class="note-dialog">

@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { Station, parseYouTubeId } = require('../station');
+const { Station, parseYouTubeId, looksNonEnglish } = require('../station');
 
 const song = (videoId, duration = 60, extra = {}) => ({
   videoId,
@@ -11,6 +11,7 @@ const song = (videoId, duration = 60, extra = {}) => ({
   blurb: 'The drums come in late and it feels like the whole song finally exhales. I play it on every long drive home.',
   name: 'Sam',
   location: 'Lagos, Nigeria',
+  language: 'english',
   ...extra,
 });
 
@@ -164,6 +165,59 @@ test('hearted songs come back more often in rotation', () => {
   }
   const others = ids.slice(1).map((id) => plays[id]);
   assert.ok(plays[ids[0]] > Math.max(...others), JSON.stringify(plays));
+});
+
+test('only accepts the languages the station is set up for', () => {
+  const s = new Station();
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { language: 'spanish' }), 'u', 0).error,
+    /only plays songs that are in English or instrumental\./);
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { language: undefined }), 'u', 0).error, /only plays/);
+  assert.equal(s.add(song('aaaaaaaaaaa', 60, { language: 'instrumental' }), 'u', 0).track.language, 'instrumental');
+
+  const englishOnly = new Station({}, { languages: ['english'] });
+  assert.match(englishOnly.add(song('aaaaaaaaaaa', 60, { language: 'instrumental' }), 'u', 0).error,
+    /only plays songs that are in English\./);
+});
+
+test('flags titles that look like they are not in English, without blocking them', () => {
+  assert.equal(looksNonEnglish('Bohemian Rhapsody'), false);
+  assert.equal(looksNonEnglish('Beyoncé – Déjà Vu'), false);
+  assert.equal(looksNonEnglish('IU - 밤편지'), true);
+  assert.equal(looksNonEnglish('Кино – Группа крови'), true);
+  assert.equal(looksNonEnglish('BTS (방탄소년단) Dynamite Official MV'), false);
+  const s = new Station();
+  assert.equal(s.add(song('aaaaaaaaaaa', 60, { title: '夜に駆ける' }), 'u', 0).track.flag, 'Title may not be in English');
+  assert.equal(s.add(song('bbbbbbbbbbb', 60, { title: 'Clair de Lune' }), 'u2', 0).track.flag, undefined);
+});
+
+test('tells players what comes next, including past picks', () => {
+  const s = new Station({}, { random: () => 0 });
+  s.add(song('aaaaaaaaaaa', 60), 'u1', 0);
+  s.add(song('bbbbbbbbbbb', 30), 'u2', 0);
+  let st = s.state(1000);
+  assert.equal(st.next.videoId, 'bbbbbbbbbbb');
+  assert.equal(st.next.startsAt, 60_000);
+  assert.equal(st.next.replay, false);
+
+  s.tick(61_000); // b is on air, queue is empty: the next song is a past pick, chosen now
+  st = s.state(61_000);
+  assert.equal(st.next.videoId, 'aaaaaaaaaaa');
+  assert.equal(st.next.replay, true);
+  assert.equal(st.next.startsAt, 90_000);
+  s.tick(91_000);
+  assert.equal(s.state(91_000).nowPlaying.videoId, 'aaaaaaaaaaa'); // and that's what actually plays
+});
+
+test('a new submission still goes ahead of an already chosen past pick', () => {
+  const s = new Station({}, { random: () => 0 });
+  s.add(song('aaaaaaaaaaa', 60), 'u1', 0);
+  s.add(song('bbbbbbbbbbb', 30), 'u2', 0);
+  s.tick(61_000);
+  assert.equal(s.state(61_000).next.videoId, 'aaaaaaaaaaa');
+  s.add(song('ccccccccccc', 30), 'u3', 62_000);
+  assert.equal(s.state(62_000).next.videoId, 'ccccccccccc');
+  s.tick(91_000);
+  assert.equal(s.playing.trackId, 3);
 });
 
 test('state survives a save and reload', () => {

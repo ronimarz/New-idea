@@ -84,6 +84,8 @@ function render() {
       link.target = '_blank';
       link.rel = 'noopener';
       title.append(link, el('span', 'status', t.status));
+      if (t.language === 'instrumental') title.append(el('span', 'status', 'instrumental'));
+      if (t.flag) title.append(el('span', 'status flag', `⚠ ${t.flag}`));
       li.append(
         title,
         el('div', 't-meta',

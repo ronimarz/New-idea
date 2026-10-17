@@ -11,9 +11,29 @@ let state = null;
 let clockOffset = 0; // serverTime - local time
 let player = null;
 let playerReady = false;
-let tunedIn = false;
-let loadedTrackId = null;
+let tunedIn = remembered('tunedIn') === '1'; // returning listeners start playing on their own
+let audible = false;
+let mutedForPreview = false;
+let needsClick = false;
+let autoplayTimer = null;
+let loadedKey = null; // which airing is loaded; the same song can come round again
 let endTimer = null;
+
+function remembered(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function remember(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage blocked; the page still works, it just won't remember.
+  }
+}
 
 // Name and location are remembered in this browser so people only type them once.
 function me() {
@@ -79,6 +99,7 @@ async function fetchState() {
     const res = await fetch(`/api/state?from=${from}`, { cache: 'no-store' });
     const data = await res.json();
     clockOffset = data.serverTime - (sent + Date.now()) / 2;
+    keepLocalHandoff(data);
     state = data;
     render();
     syncPlayer();
@@ -90,6 +111,10 @@ async function fetchState() {
 function elapsedSec() {
   const np = state && state.nowPlaying;
   return np ? (serverNow() - np.startedAt) / 1000 : 0;
+}
+
+function langTag(t) {
+  return t.language === 'instrumental' ? ' · instrumental' : '';
 }
 
 function pickedBy(t) {
@@ -169,7 +194,7 @@ function trackItem(t) {
   title.textContent = t.title;
   const meta = document.createElement('div');
   meta.className = 't-meta';
-  meta.textContent = `${fmt(t.duration)} · picked by ${pickedBy(t)}`;
+  meta.textContent = `${fmt(t.duration)} · picked by ${pickedBy(t)}${langTag(t)}`;
   const blurb = document.createElement('div');
   blurb.className = 't-blurb';
   blurb.textContent = `“${t.blurb}”`;
@@ -181,15 +206,20 @@ function render() {
   const np = state.nowPlaying;
   $('np-empty').hidden = !!np;
   $('np-info').hidden = !np;
-  $('tune-in').hidden = !np || tunedIn;
+  $('tune-in').hidden = !np || audible || (tunedIn && !needsClick);
   if (np) {
     $('np-title').textContent = np.title;
     $('np-name').textContent = np.name;
     $('np-from').textContent = np.location ? ` in ${np.location}` : '';
+    $('np-lang').textContent = langTag(np);
+    const nx = state.next;
+    $('np-next').textContent = nx
+      ? `Next: ${nx.title}, picked by ${pickedBy(nx)}${nx.replay ? ' (from earlier)' : ''}`
+      : '';
     $('np-blurb').textContent = np.blurb;
     $('np-heart').replaceChildren(...actions(np).childNodes);
     $('np-total').textContent = fmt(np.duration);
-    document.title = `${np.title} · Open Air Radio`;
+    document.title = `♪ ${np.title} · Open Air Radio`;
   } else {
     document.title = 'Open Air Radio';
   }
@@ -199,6 +229,7 @@ function render() {
   $('queue-count').textContent = state.queueLength ? `(${state.queueLength})` : '';
   $('recent').replaceChildren(...state.recent.map(trackItem));
   $('recent-empty').hidden = state.recent.length > 0;
+  renderLanguages();
   renderListeners();
   renderInbox();
 }
@@ -381,14 +412,24 @@ function syncPlayer() {
   if (!playerReady || !tunedIn) return;
   if (!np) {
     player.stopVideo();
-    loadedTrackId = null;
+    loadedKey = null;
     return;
   }
-  if (np.id !== loadedTrackId) {
-    loadedTrackId = np.id;
+  const key = `${np.id}@${np.startedAt}`;
+  if (key !== loadedKey) {
+    loadedKey = key;
     $('player-msg').hidden = true;
     announce(np);
     player.loadVideoById({ videoId: np.videoId, startSeconds: Math.max(0, elapsedSec()) });
+    // Browsers may block sound until the listener clicks once. If it hasn't started
+    // after a few seconds, show the Tune in button.
+    clearTimeout(autoplayTimer);
+    autoplayTimer = setTimeout(() => {
+      if (!audible) {
+        needsClick = true;
+        render();
+      }
+    }, 4000);
     return;
   }
   if (player.getPlayerState() === YT.PlayerState.PLAYING) {
@@ -398,11 +439,58 @@ function syncPlayer() {
 }
 
 function onPlayerState(e) {
+  const S = YT.PlayerState;
+  const wasAudible = audible;
+  // Some browsers start the video muted instead of blocking it; that still needs a click.
+  audible =
+    (e.data === S.PLAYING || e.data === S.BUFFERING) && (!player.isMuted() || mutedForPreview);
+  if (audible) needsClick = false;
+  if (audible !== wasAudible && state) render();
   // If a listener paused and resumes, jump back to where the station actually is.
-  if (e.data === YT.PlayerState.PLAYING) {
+  if (e.data === S.PLAYING) {
     const drift = Math.abs(player.getCurrentTime() - elapsedSec());
     if (drift > DRIFT_TOLERANCE_SEC) player.seekTo(elapsedSec(), true);
   }
+  if (e.data === S.ENDED) playNextNow();
+}
+
+// The player can finish a second or two before the server moves on. Don't jump back
+// to the old song in that gap; keep what we already switched to.
+let skippedKey = null;
+
+function keepLocalHandoff(data) {
+  const np = data.nowPlaying;
+  if (!skippedKey || !np || `${np.id}@${np.startedAt}` !== skippedKey) {
+    skippedKey = null;
+    return;
+  }
+  const leftMs = np.startedAt + np.duration * 1000 - data.serverTime;
+  if (leftMs > 10_000) {
+    skippedKey = null; // well off; trust the server
+    return;
+  }
+  data.nowPlaying = state.nowPlaying;
+  data.next = null;
+}
+
+// Start the next song the moment this one ends. This comes from the player itself, so it
+// works even in a background tab, where the browser slows down the page's own timers.
+function playNextNow() {
+  const nx = state && state.next;
+  if (nx) {
+    const np = state.nowPlaying;
+    skippedKey = np ? `${np.id}@${np.startedAt}` : null;
+    if (state.nowPlaying) state.recent = [state.nowPlaying, ...state.recent].slice(0, 10);
+    state.nowPlaying = { ...nx, startedAt: nx.startsAt };
+    if (!nx.replay) {
+      state.upNext = state.upNext.filter((t) => t.id !== nx.id);
+      state.queueLength = Math.max(0, state.queueLength - 1);
+    }
+    state.next = null;
+    render();
+    syncPlayer();
+  }
+  fetchState();
 }
 
 function onPlayerError() {
@@ -415,8 +503,27 @@ function onPlayerError() {
 
 function tuneIn() {
   tunedIn = true;
+  needsClick = false;
+  remember('tunedIn', '1');
   $('tune-in').hidden = true;
-  syncPlayer();
+  const np = state && state.nowPlaying;
+  if (playerReady && np && loadedKey === `${np.id}@${np.startedAt}`) {
+    // Already loaded but held back by the browser: this click lets it play.
+    player.unMute();
+    player.seekTo(Math.max(0, elapsedSec()), true);
+    player.playVideo();
+  } else {
+    syncPlayer();
+  }
+}
+
+// ---- "Just listen" mode ---------------------------------------------------------
+
+function setLean(on) {
+  document.body.classList.toggle('lean', on);
+  $('lean-toggle').setAttribute('aria-pressed', String(on));
+  $('lean-toggle').textContent = on ? 'Show everything' : 'Just listen';
+  remember('lean', on ? '1' : '0');
 }
 
 // ---- DJ voice ----------------------------------------------------------------
@@ -461,9 +568,39 @@ function updateBlurbCount() {
     need > 0 ? `${need} more characters to go (at least ${MIN_BLURB})` : `${n}/${MAX_BLURB}`;
 }
 
+// ---- Language ------------------------------------------------------------------
+
+let langsShown = false;
+
+function renderLanguages() {
+  if (langsShown || !state.languages) return;
+  langsShown = true;
+  $('f-langs').replaceChildren(
+    ...state.languages.map((l) => {
+      const label = document.createElement('label');
+      label.className = 'lang-option';
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'language';
+      input.value = l.id;
+      input.required = true;
+      input.addEventListener('change', updateSubmit);
+      label.append(input, ` ${l.label}`);
+      return label;
+    })
+  );
+  $('lang-note').textContent = state.languageRule;
+}
+
+function chosenLanguage() {
+  const checked = document.querySelector('input[name="language"]:checked');
+  return checked ? checked.value : null;
+}
+
 function updateSubmit() {
   $('f-submit').disabled = !(
     pending &&
+    chosenLanguage() &&
     blurbLength() >= MIN_BLURB &&
     $('f-location').value.trim()
   );
@@ -506,8 +643,13 @@ function onPreviewState(e) {
   }
   // Mute the station while someone listens to their preview.
   if (!probing && playerReady) {
-    if (e.data === YT.PlayerState.PLAYING) player.mute();
-    else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) player.unMute();
+    if (e.data === YT.PlayerState.PLAYING) {
+      mutedForPreview = true;
+      player.mute();
+    } else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) {
+      mutedForPreview = false;
+      player.unMute();
+    }
   }
 }
 
@@ -532,6 +674,7 @@ async function onSubmit(e) {
         blurb: $('f-blurb').value,
         name: $('f-name').value,
         location: $('f-location').value,
+        language: chosenLanguage(),
       }),
     });
     rememberMe($('f-name').value, $('f-location').value);
@@ -543,9 +686,11 @@ async function onSubmit(e) {
       : "Added! It's on the air right now.";
     $('f-url').value = '';
     $('f-blurb').value = '';
+    for (const r of document.querySelectorAll('input[name="language"]')) r.checked = false;
     updateBlurbCount();
     $('preview-wrap').hidden = true;
     if (preview) preview.stopVideo();
+    mutedForPreview = false;
     if (playerReady) player.unMute();
     setPreviewStatus('');
     pending = null;
@@ -598,6 +743,13 @@ $('f-location').addEventListener('input', updateSubmit);
 updateBlurbCount();
 $('add-form').addEventListener('submit', onSubmit);
 $('tune-in').addEventListener('click', tuneIn);
+$('lean-toggle').addEventListener('click', () => setLean(!document.body.classList.contains('lean')));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.body.classList.contains('lean') && !$('note-dialog').open) {
+    setLean(false);
+  }
+});
+setLean(remembered('lean') === '1');
 $('chat-form').addEventListener('submit', onChatSubmit);
 $('note-form').addEventListener('submit', onNoteSubmit);
 $('note-cancel').addEventListener('click', () => $('note-dialog').close());

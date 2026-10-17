@@ -30,7 +30,7 @@ body {
 }
 
 .top {
-  max-width: 720px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 28px 16px 8px;
 }
@@ -58,7 +58,7 @@ body {
 .tagline { margin: 4px 0 0; color: var(--muted); }
 
 main {
-  max-width: 720px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 8px 16px 48px;
   display: grid;
@@ -168,7 +168,7 @@ form { display: grid; gap: 12px; }
 
 form label { display: grid; gap: 4px; font-weight: 600; }
 
-input:not([type="checkbox"]),
+input:not([type="checkbox"]):not([type="radio"]),
 textarea {
   font: inherit;
   font-weight: 400;
@@ -324,3 +324,50 @@ a { color: var(--accent); }
 }
 button.danger { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 .admin-row { display: flex; justify-content: space-between; align-items: center; }
+
+/* ---- Layout: the station up top, everything else below ---------------------- */
+
+.top-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+button.small { padding: 6px 14px; font-size: 0.85rem; }
+
+.stage, .more, .side { display: grid; gap: 16px; }
+.chat-inner { display: flex; flex-direction: column; }
+.np-next { margin-top: 10px; }
+
+@media (min-width: 900px) {
+  .stage { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); }
+  /* The chat fills the height of the player card next to it and scrolls inside. */
+  .chat-card { position: relative; min-height: 420px; }
+  .chat-inner { position: absolute; inset: 18px; }
+  .chat-log { flex: 1 1 0; min-height: 0; max-height: none; }
+  .more { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+}
+
+/* "Just listen": only the music, the current pick and the chat. */
+body.lean .more,
+body.lean #inbox,
+body.lean .tagline,
+body.lean .toggle { display: none; }
+@media (min-width: 900px) {
+  body.lean .stage { grid-template-columns: minmax(0, 3fr) minmax(300px, 1fr); }
+}
+
+/* ---- Language choice ---------------------------------------------------------- */
+
+fieldset.langs { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+fieldset.langs legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
+.lang-options { display: flex; flex-wrap: wrap; gap: 8px; }
+form .lang-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.lang-option:has(input:checked) { border-color: var(--accent); background: var(--quote); }
+.status.flag { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.chat-log { align-content: start; }
+input[type="radio"], input[type="checkbox"] { accent-color: var(--accent); }

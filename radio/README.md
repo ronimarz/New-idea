@@ -1,8 +1,10 @@
 # Open Air Radio
 
-A single global radio station that anyone can add to. You paste a YouTube link, say where you're listening from, and write a few sentences on why people should hear it. Your song joins the queue, and when it plays, everyone listening sees your blurb and location next to it.
+A single global radio station that anyone can add to, meant to be left on in the background all day, like the Lofi Girl stream on YouTube. You paste a YouTube link, say where you're listening from, and write a few sentences on why people should hear it. Your song joins the queue, and when it plays, everyone listening sees your blurb and location next to it.
 
 - **Everyone hears the same thing.** The server keeps one schedule, and every listener's player jumps to the same spot in the current song.
+- **Made to leave on.** The player and the current pick sit up top with the chat beside them, and everything else is below. "Just listen" hides everything but the music and the chat. When a song ends, the next one starts right away, even in a background tab. Returning listeners start playing without clicking, if their browser allows it. The tab title shows what's playing.
+- **English songs and instrumentals, for now.** People say whether a song's lyrics are in English or it's instrumental; anything else is turned away. A title written mostly in another script (Korean, Cyrillic…) gets a warning badge on the admin page so you can check it.
 - **It never goes quiet.** New picks play in the order they were added. When the queue is empty, the station replays past picks at random, skipping anything that played recently.
 - **The blurb is the DJ.** It shows under the player. Listeners can turn on "Read the blurbs aloud," which uses the browser's text-to-speech and turns the music down while it talks.
 - **Hearts, and nothing negative.** Listeners can heart a pick they love, once per song, and take it back. There are no downvotes, rankings or "top songs" lists. On your own pick you see "Your pick" and how many people love it, and who gave the hearts stays private. Hearted songs come back a little more often when the station replays past picks, up to 3 times as often.
@@ -29,6 +31,7 @@ Settings, all optional:
 | `PORT` | `3000` | Port to listen on. |
 | `DATA_FILE` | `radio/data/station.json` | Where the station's songs and schedule are saved. |
 | `ADMIN_TOKEN` | random | The admin password. If it isn't set, a new one is made at each start and printed in the terminal. |
+| `STATION_LANGUAGES` | `english,instrumental` | Which songs are accepted. Use `english` alone to turn instrumentals away. |
 | `TRUST_PROXY` | off | Set to `1` behind a reverse proxy so the per-person limits use the real visitor IP. |
 
 ## The admin page
@@ -46,8 +49,9 @@ Private thank-you notes aren't shown on the admin page. Their recipient can clea
 ## How adding a song works
 
 1. When you paste a link, the page loads it in a small preview player. That's how it learns the song's title and length, and finds out early whether the video can play on other sites.
-2. You write a blurb of 100 to 280 characters and say where you're listening from. Adding your name is optional. The minimum is there to make people say something real, not just "great song!". The counter shows how many more characters are needed, and the button stays disabled until there are enough. Extra spaces and line breaks don't count toward it.
-3. The server checks the submission and adds it to the end of the queue. If nothing is playing, it goes on air right away.
+2. You say whether the lyrics are in English or it's instrumental. People can pick the wrong option, so the admin page flags titles that look like they're in another language.
+3. You write a blurb of 100 to 280 characters and say where you're listening from. Adding your name is optional. The minimum is there to make people say something real, not just "great song!". The counter shows how many more characters are needed, and the button stays disabled until there are enough. Extra spaces and line breaks don't count toward it.
+4. The server checks the submission and adds it to the end of the queue. If nothing is playing, it goes on air right away.
 
 ## Abuse limits
 

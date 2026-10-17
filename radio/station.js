@@ -19,6 +19,27 @@ const LIMITS = {
 
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 
+// What a song's lyrics can be. The station accepts only the ones it's configured for.
+const LANGUAGES = {
+  english: 'English',
+  instrumental: 'Instrumental (no lyrics)',
+};
+const DEFAULT_LANGUAGES = ['english', 'instrumental'];
+const RULE_WORDS = { english: 'in English', instrumental: 'instrumental' };
+
+function languageRule(languages) {
+  return `For now, the station only plays songs that are ${languages.map((l) => RULE_WORDS[l]).join(' or ')}.`;
+}
+
+// A title written mostly in a non-Latin script (Korean, Cyrillic, Arabic…) suggests the
+// song may not be in English. This only flags it for the admin to check; it never blocks.
+function looksNonEnglish(title) {
+  const letters = title.match(/\p{L}/gu) || [];
+  if (letters.length < 3) return false;
+  const latin = letters.filter((c) => /\p{Script=Latin}/u.test(c)).length;
+  return latin / letters.length < 0.5;
+}
+
 function parseYouTubeId(input) {
   if (typeof input !== 'string') return null;
   const s = input.trim();
@@ -54,7 +75,7 @@ function cleanText(value, max) {
 // this is their own pick and whether they've hearted it. It is never sent out itself.
 function publicTrack(t, viewer) {
   if (!t) return null;
-  const { id, videoId, title, duration, name, location, blurb, addedAt } = t;
+  const { id, videoId, title, duration, name, location, blurb, addedAt, language } = t;
   const hearts = t.hearts || [];
   return {
     id,
@@ -65,6 +86,7 @@ function publicTrack(t, viewer) {
     location: location || '',
     blurb,
     addedAt,
+    language: language || 'english',
     hearts: hearts.length,
     hearted: viewer != null && hearts.includes(viewer),
     mine: viewer != null && t.submitter === viewer,
@@ -72,13 +94,16 @@ function publicTrack(t, viewer) {
 }
 
 class Station {
-  constructor(data = {}, { random = Math.random } = {}) {
+  constructor(data = {}, { random = Math.random, languages = DEFAULT_LANGUAGES } = {}) {
     this.tracks = data.tracks || [];
     this.queue = data.queue || [];
     this.history = data.history || [];
     this.playing = data.playing || null;
     this.nextId = data.nextId || this.tracks.reduce((m, t) => Math.max(m, t.id), 0) + 1;
+    // A past pick chosen ahead of time, so listeners know what follows the current song.
+    this.nextPick = data.nextPick || null;
     this.random = random;
+    this.languages = languages;
   }
 
   toJSON() {
@@ -88,6 +113,7 @@ class Station {
       history: this.history,
       playing: this.playing,
       nextId: this.nextId,
+      nextPick: this.nextPick,
     };
   }
 
@@ -114,9 +140,13 @@ class Station {
     }
     const location = cleanText(input.location, LIMITS.maxLocation);
     if (!location) return { error: "Tell people where you're listening from." };
+    const language = input.language;
+    if (!this.languages.includes(language)) return { error: languageRule(this.languages) };
     const name = cleanText(input.name, LIMITS.maxName) || 'Anonymous';
     const title = cleanText(input.title, LIMITS.maxTitle) || 'Untitled';
-    return { value: { videoId, duration, blurb, name, location, title } };
+    const value = { videoId, duration, blurb, name, location, title, language };
+    if (language === 'english' && looksNonEnglish(title)) value.flag = 'Title may not be in English';
+    return { value };
   }
 
   add(input, submitter, now = Date.now()) {
@@ -152,13 +182,27 @@ class Station {
   }
 
   startNext(at) {
-    const id = this.queue.length ? this.queue.shift() : this.pickRotation();
+    let id = this.queue.length ? this.queue.shift() : this.validNextPick();
+    if (id == null) id = this.pickRotation();
+    this.nextPick = null;
     if (id == null) return false;
     this.playing = { trackId: id, startedAt: at };
     this.history.push(id);
     if (this.history.length > LIMITS.historySize) this.history.shift();
     this.byId(id).plays++;
     return true;
+  }
+
+  validNextPick() {
+    const t = this.nextPick != null && this.byId(this.nextPick);
+    return t && !(this.playing && this.playing.trackId === t.id) ? t.id : null;
+  }
+
+  // What plays after the current song: the oldest new submission, or else a past pick.
+  upcoming() {
+    if (this.queue.length) return this.byId(this.queue[0]);
+    if (this.validNextPick() == null) this.nextPick = this.pickRotation();
+    return this.byId(this.nextPick);
   }
 
   // Admin: take a song off the station entirely. If it's on air, the next one starts now.
@@ -222,10 +266,19 @@ class Station {
   state(now = Date.now(), viewer = null) {
     const current = this.playing && this.byId(this.playing.trackId);
     const recentIds = this.history.slice(0, current ? -1 : undefined).slice(-10).reverse();
+    const next = current && this.upcoming();
     return {
       serverTime: now,
       nowPlaying: current
         ? { ...publicTrack(current, viewer), startedAt: this.playing.startedAt }
+        : null,
+      // Lets players start the next song the moment this one ends, even in a background tab.
+      next: next
+        ? {
+            ...publicTrack(next, viewer),
+            startsAt: this.playing.startedAt + current.duration * 1000,
+            replay: !this.queue.length,
+          }
         : null,
       upNext: this.queue.slice(0, 20).map((id) => publicTrack(this.byId(id), viewer)),
       queueLength: this.queue.length,
@@ -235,4 +288,12 @@ class Station {
   }
 }
 
-module.exports = { Station, parseYouTubeId, cleanText, LIMITS };
+module.exports = {
+  Station,
+  parseYouTubeId,
+  cleanText,
+  looksNonEnglish,
+  languageRule,
+  LIMITS,
+  LANGUAGES,
+};
