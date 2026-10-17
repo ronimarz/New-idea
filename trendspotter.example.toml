@@ -1,0 +1,32 @@
+# Copy to trendspotter.toml and edit.
+
+# Which charts to watch. apple and spotify need nothing; lastfm needs a free key (below).
+sources = ["apple", "spotify", "lastfm"]
+
+# Compare today's charts with the charts from about this many days ago.
+# 3 catches songs early; 7 is steadier but later.
+lookback_days = 3
+
+# Hide songs scoring below this. Lower it to see more, raise it for only the strongest risers.
+min_score = 10
+
+[apple]
+country = "us"            # two-letter country code
+
+[spotify]
+country = "us"            # two-letter code, or "global"
+
+# What people are actually listening to right now (free key: https://www.last.fm/api/account/create)
+[lastfm]
+api_key = ""
+country = "united states"
+
+# Optional: email yourself the report after each run.
+# For Gmail, turn on 2-Step Verification, then create an "app password" at
+# https://myaccount.google.com/apppasswords and paste it below (not your normal password).
+[email]
+to = ""                   # where to send it, e.g. "you@gmail.com"
+username = ""             # the Gmail address that sends it (can be the same)
+password = ""             # the 16-letter app password
+host = "smtp.gmail.com"
+port = 465

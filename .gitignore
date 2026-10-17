@@ -1,3 +1,5 @@
 __pycache__/
 config.toml
 reports/
+trendspotter.toml
+trends/

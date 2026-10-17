@@ -1,5 +1,7 @@
 # avjobs: find jobs with AV duties
 
+> Also in this repo: **[trendspotter](TRENDSPOTTER.md)**, which spots songs climbing the charts early so you can make CapCut templates for them first.
+
 `avjobs` searches job boards and company career pages, then reads every job description. It keeps only the postings whose duties involve **AV (audio-visual) work** and ranks them by how much of the job is AV.
 
 You get:
