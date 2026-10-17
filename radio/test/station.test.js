@@ -8,8 +8,9 @@ const song = (videoId, duration = 60, extra = {}) => ({
   videoId,
   duration,
   title: `Song ${videoId}`,
-  blurb: 'You need to hear this.',
+  blurb: 'The drums come in late and it feels like the whole song finally exhales. I play it on every long drive home.',
   name: 'Sam',
+  location: 'Lagos, Nigeria',
   ...extra,
 });
 
@@ -97,6 +98,10 @@ test('rejects bad submissions', () => {
   assert.match(s.add(song('aaaaaaaaaaa', 0), 'u').error, /how long/);
   assert.match(s.add(song('aaaaaaaaaaa', 99999), 'u').error, /up to 15 minutes/);
   assert.match(s.add(song('aaaaaaaaaaa', 60, { blurb: '   ' }), 'u').error, /why/);
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { blurb: 'Great song!' }), 'u').error, /at least 100/);
+  // Padding with spaces doesn't count toward the minimum.
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { blurb: `Great${' '.repeat(120)}song` }), 'u').error, /at least 100/);
+  assert.match(s.add(song('aaaaaaaaaaa', 60, { location: '  ' }), 'u').error, /where you're listening/);
 });
 
 test('blocks duplicates in the queue and limits songs per person', () => {
@@ -112,10 +117,12 @@ test('blocks duplicates in the queue and limits songs per person', () => {
 
 test('cleans text and hides who submitted', () => {
   const s = new Station();
-  s.add(song('aaaaaaaaaaa', 60, { name: '', blurb: '  so\n\ngood  ', title: 'x'.repeat(500) }), 'secret', 0);
+  const blurb = 'so\n\ngood '.repeat(20);
+  s.add(song('aaaaaaaaaaa', 60, { name: '', blurb, title: 'x'.repeat(500) }), 'secret', 0);
   const np = s.state(0).nowPlaying;
   assert.equal(np.name, 'Anonymous');
-  assert.equal(np.blurb, 'so good');
+  assert.equal(np.location, 'Lagos, Nigeria');
+  assert.equal(np.blurb, 'so good '.repeat(20).trim());
   assert.equal(np.title.length, 200);
   assert.equal('submitter' in np, false);
 });

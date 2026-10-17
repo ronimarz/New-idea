@@ -25,7 +25,7 @@
       </div>
       <div id="np-info" hidden>
         <h3 id="np-title" class="np-title"></h3>
-        <p class="np-by">picked by <strong id="np-name"></strong></p>
+        <p class="np-by">picked by <strong id="np-name"></strong><span id="np-from"></span></p>
         <blockquote id="np-blurb" class="blurb"></blockquote>
         <div class="progress" aria-hidden="true"><div id="np-bar"></div></div>
         <div class="times"><span id="np-elapsed">0:00</span><span id="np-total">0:00</span></div>
@@ -44,9 +44,13 @@
         <div id="preview-wrap" class="preview" hidden><div id="preview"></div></div>
         <p id="preview-status" class="hint"></p>
         <label>Why should people hear this?
-          <textarea id="f-blurb" maxlength="280" rows="3" required
-            placeholder="The bass line on this one changed my life…"></textarea>
-          <span class="hint"><span id="blurb-count">0</span>/280</span>
+          <span class="hint">What does it mean to you? Where were you when you first heard it? What should people listen for?</span>
+          <textarea id="f-blurb" minlength="100" maxlength="280" rows="4" required
+            placeholder="The first time I heard this I was…"></textarea>
+          <span id="blurb-count" class="hint"></span>
+        </label>
+        <label>Where are you listening from?
+          <input id="f-location" maxlength="60" required placeholder="City, country">
         </label>
         <label>Your name <span class="hint">(optional)</span>
           <input id="f-name" maxlength="40" placeholder="Anonymous">

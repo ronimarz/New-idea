@@ -5,8 +5,10 @@
 
 const LIMITS = {
   maxDurationSec: 15 * 60,
+  minBlurb: 100,
   maxBlurb: 280,
   maxName: 40,
+  maxLocation: 60,
   maxTitle: 200,
   maxQueuedPerSubmitter: 3,
   historySize: 50,
@@ -50,8 +52,8 @@ function cleanText(value, max) {
 
 function publicTrack(t) {
   if (!t) return null;
-  const { id, videoId, title, duration, name, blurb, addedAt } = t;
-  return { id, videoId, title, duration, name, blurb, addedAt };
+  const { id, videoId, title, duration, name, location, blurb, addedAt } = t;
+  return { id, videoId, title, duration, name, location: location || '', blurb, addedAt };
 }
 
 class Station {
@@ -90,9 +92,16 @@ class Station {
     }
     const blurb = cleanText(input.blurb, LIMITS.maxBlurb);
     if (!blurb) return { error: 'Tell people why they should hear it.' };
+    if (blurb.length < LIMITS.minBlurb) {
+      return {
+        error: `Tell us a bit more about why you picked it (at least ${LIMITS.minBlurb} characters).`,
+      };
+    }
+    const location = cleanText(input.location, LIMITS.maxLocation);
+    if (!location) return { error: "Tell people where you're listening from." };
     const name = cleanText(input.name, LIMITS.maxName) || 'Anonymous';
     const title = cleanText(input.title, LIMITS.maxTitle) || 'Untitled';
-    return { value: { videoId, duration, blurb, name, title } };
+    return { value: { videoId, duration, blurb, name, location, title } };
   }
 
   add(input, submitter, now = Date.now()) {

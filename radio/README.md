@@ -1,6 +1,6 @@
 # Open Air Radio
 
-A single global radio station that anyone can add to. You paste a YouTube link and write a short blurb on why people should hear it. Your song joins the queue, and when it plays, everyone listening sees your blurb next to it.
+A single global radio station that anyone can add to. You paste a YouTube link, say where you're listening from, and write a few sentences on why people should hear it. Your song joins the queue, and when it plays, everyone listening sees your blurb and location next to it.
 
 - **Everyone hears the same thing.** The server keeps one schedule, and every listener's player jumps to the same spot in the current song.
 - **It never goes quiet.** New picks play in the order they were added. When the queue is empty, the station replays past picks at random, skipping anything that played recently.
@@ -30,7 +30,7 @@ Settings, all optional:
 ## How adding a song works
 
 1. When you paste a link, the page loads it in a small preview player. That's how it learns the song's title and length, and finds out early whether the video can play on other sites.
-2. You write a blurb (up to 280 characters) and, optionally, your name.
+2. You write a blurb of 100 to 280 characters and say where you're listening from. Adding your name is optional. The minimum is there to make people say something real, not just "great song!". The counter shows how many more characters are needed, and the button stays disabled until there are enough. Extra spaces and line breaks don't count toward it.
 3. The server checks the submission and adds it to the end of the queue. If nothing is playing, it goes on air right away.
 
 ## Abuse limits
@@ -39,7 +39,7 @@ These are basic, for a first version:
 
 - Each visitor (identified by a hash of their IP address) can submit once every 30 seconds and have at most 3 songs waiting.
 - The same video can't be in the queue twice at once.
-- Names and blurbs are length-limited, and they're always shown as plain text, never as HTML.
+- Names, locations and blurbs are length-limited, and they're always shown as plain text, never as HTML.
 
 There's no moderation queue or way to remove a song yet. Before you open it up publicly, you'll want at least an admin "remove" button, and maybe reporting or upvotes.
 

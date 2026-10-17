@@ -3,6 +3,8 @@
 const $ = (id) => document.getElementById(id);
 const POLL_MS = 5000;
 const DRIFT_TOLERANCE_SEC = 3;
+const MIN_BLURB = 100;
+const MAX_BLURB = 280;
 
 let state = null;
 let clockOffset = 0; // serverTime - local time
@@ -67,6 +69,10 @@ function elapsedSec() {
   return np ? (serverNow() - np.startedAt) / 1000 : 0;
 }
 
+function pickedBy(t) {
+  return t.location ? `${t.name} in ${t.location}` : t.name;
+}
+
 function trackItem(t) {
   const li = document.createElement('li');
   const title = document.createElement('div');
@@ -74,7 +80,7 @@ function trackItem(t) {
   title.textContent = t.title;
   const meta = document.createElement('div');
   meta.className = 't-meta';
-  meta.textContent = `${fmt(t.duration)} · picked by ${t.name}`;
+  meta.textContent = `${fmt(t.duration)} · picked by ${pickedBy(t)}`;
   const blurb = document.createElement('div');
   blurb.className = 't-blurb';
   blurb.textContent = `“${t.blurb}”`;
@@ -90,6 +96,7 @@ function render() {
   if (np) {
     $('np-title').textContent = np.title;
     $('np-name').textContent = np.name;
+    $('np-from').textContent = np.location ? ` in ${np.location}` : '';
     $('np-blurb').textContent = np.blurb;
     $('np-total').textContent = fmt(np.duration);
     document.title = `${np.title} · Open Air Radio`;
@@ -168,7 +175,7 @@ function announce(track) {
   if (!$('dj-voice').checked || !('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(
-    `Now playing ${track.title}, picked by ${track.name}. ${track.blurb}`
+    `Now playing ${track.title}, picked by ${pickedBy(track)}. ${track.blurb}`
   );
   const restore = () => {
     if (playerReady) player.setVolume(100);
@@ -192,8 +199,24 @@ function setPreviewStatus(text) {
   $('preview-status').textContent = text;
 }
 
+// Count the way the server does: runs of spaces and line breaks count as one character.
+function blurbLength() {
+  return $('f-blurb').value.replace(/\s+/g, ' ').trim().length;
+}
+
+function updateBlurbCount() {
+  const n = blurbLength();
+  const need = MIN_BLURB - n;
+  $('blurb-count').textContent =
+    need > 0 ? `${need} more characters to go (at least ${MIN_BLURB})` : `${n}/${MAX_BLURB}`;
+}
+
 function updateSubmit() {
-  $('f-submit').disabled = !(pending && $('f-blurb').value.trim());
+  $('f-submit').disabled = !(
+    pending &&
+    blurbLength() >= MIN_BLURB &&
+    $('f-location').value.trim()
+  );
 }
 
 function onUrlInput() {
@@ -258,6 +281,7 @@ async function onSubmit(e) {
         ...pending,
         blurb: $('f-blurb').value,
         name: $('f-name').value,
+        location: $('f-location').value,
       }),
     });
     const body = await res.json();
@@ -268,7 +292,7 @@ async function onSubmit(e) {
       : "Added! It's on the air right now.";
     $('f-url').value = '';
     $('f-blurb').value = '';
-    $('blurb-count').textContent = '0';
+    updateBlurbCount();
     $('preview-wrap').hidden = true;
     if (preview) preview.stopVideo();
     if (playerReady) player.unMute();
@@ -316,9 +340,11 @@ $('f-url').addEventListener('input', () => {
   urlTimer = setTimeout(onUrlInput, 400);
 });
 $('f-blurb').addEventListener('input', () => {
-  $('blurb-count').textContent = $('f-blurb').value.length;
+  updateBlurbCount();
   updateSubmit();
 });
+$('f-location').addEventListener('input', updateSubmit);
+updateBlurbCount();
 $('add-form').addEventListener('submit', onSubmit);
 $('tune-in').addEventListener('click', tuneIn);
 
